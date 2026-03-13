@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 · 漫画站</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="login-box">
+        <h2>🔐 登录漫画站</h2>
+        
+        <!-- 切换登录/注册的标签 -->
+        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+            <button id="loginTab" style="flex:1; background:#0070f3;" onclick="showLogin()">登录</button>
+            <button id="registerTab" style="flex:1; background:#666;" onclick="showRegister()">注册</button>
+        </div>
+
+        <!-- 登录表单 -->
+        <div id="loginForm">
+            <input type="text" id="loginUsername" placeholder="用户名">
+            <input type="password" id="loginPassword" placeholder="密码">
+            <button onclick="handleLogin()">登录</button>
+        </div>
+
+        <!-- 注册表单（初始隐藏） -->
+        <div id="registerForm" style="display: none;">
+            <input type="text" id="regUsername" placeholder="用户名 (至少3位)">
+            <input type="password" id="regPassword" placeholder="密码 (至少6位)">
+            <input type="password" id="regConfirm" placeholder="确认密码">
+            <button onclick="handleRegister()">注册</button>
+        </div>
+
+        <p id="message" style="color:red; margin-top:15px;"></p>
+        <p style="margin-top:20px; text-align:center;">
+            <a href="index.html">← 返回主页</a>
+        </p>
+    </div>
+
+    <script>
+        function showLogin() {
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('registerForm').style.display = 'none';
+            document.getElementById('loginTab').style.background = '#0070f3';
+            document.getElementById('registerTab').style.background = '#666';
+            document.getElementById('message').innerText = '';
+        }
+
+        function showRegister() {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('registerForm').style.display = 'block';
+            document.getElementById('loginTab').style.background = '#666';
+            document.getElementById('registerTab').style.background = '#0070f3';
+            document.getElementById('message').innerText = '';
+        }
+
+        async function handleLogin() {
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            const msg = document.getElementById('message');
+
+            if (!username || !password) {
+                msg.innerText = '请输入用户名和密码';
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+
+                if (res.ok && data.success) {
+                    localStorage.setItem('loggedIn', 'true');
+                    localStorage.setItem('currentUser', data.username);
+                    window.location.href = 'index.html';
+                } else {
+                    msg.innerText = data.error || '登录失败';
+                }
+            } catch (err) {
+                msg.innerText = '网络错误，请稍后重试';
+            }
+        }
+
+        async function handleRegister() {
+            const username = document.getElementById('regUsername').value.trim();
+            const password = document.getElementById('regPassword').value;
+            const confirm = document.getElementById('regConfirm').value;
+            const msg = document.getElementById('message');
+
+            if (!username || !password || !confirm) {
+                msg.innerText = '请填写所有字段';
+                return;
+            }
+            if (password !== confirm) {
+                msg.innerText = '两次密码不一致';
+                return;
+            }
+            if (username.length < 3) {
+                msg.innerText = '用户名至少3位';
+                return;
+            }
+            if (password.length < 6) {
+                msg.innerText = '密码至少6位';
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+
+                if (res.ok && data.success) {
+                    msg.style.color = 'green';
+                    msg.innerText = '注册成功！现在可以登录了';
+                    showLogin(); // 切换到登录页
+                    document.getElementById('loginUsername').value = username;
+                } else {
+                    msg.style.color = 'red';
+                    msg.innerText = data.error || '注册失败';
+                }
+            } catch (err) {
+                msg.innerText = '网络错误，请稍后重试';
+            }
+        }
+    </script>
+</body>
+</html>

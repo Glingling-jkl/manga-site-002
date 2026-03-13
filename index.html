@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>漫画站 · 主页</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* 启动画面样式 */
+        .splash-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease;
+        }
+        .splash-screen.hidden {
+            display: none;
+        }
+        .splash-content {
+            position: relative;
+            width: 220px;
+            height: 220px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        /* 内圈旋转圆圈 */
+        .spinner-inner {
+            position: absolute;
+            width: 180px;
+            height: 180px;
+            border: 6px solid #ffe4ec;
+            border-top-color: #ffb6c1;
+            border-radius: 50%;
+            animation: spin 1.5s infinite linear;
+            transition: opacity 0.5s ease;
+        }
+        /* 外圈旋转圆圈 */
+        .spinner-outer {
+            position: absolute;
+            width: 210px;
+            height: 210px;
+            border: 6px solid #ffe4ec;
+            border-top-color: #ffb6c1;
+            border-radius: 50%;
+            animation: spin 2s infinite linear reverse;
+            opacity: 0.5;
+            transition: opacity 0.5s ease;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        /* 中心图标（✿）淡粉色，向上微调4px（取中间值） */
+        .center-icon {
+            position: absolute;
+            font-size: 100px;
+            color: #ffb6c1;
+            opacity: 0;
+            transition: opacity 1s ease;
+            pointer-events: none;
+            z-index: 10;
+            transform: translateY(-4px); /* 从-8px改为-4px，更适中 */
+        }
+        .center-icon.visible {
+            opacity: 1;
+        }
+        /* 主内容初始透明，渐现效果 */
+        #main-content {
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <!-- 启动画面元素 -->
+    <div id="splash" class="splash-screen">
+        <div class="splash-content">
+            <div class="spinner-outer" id="spinnerOuter"></div>
+            <div class="spinner-inner" id="spinnerInner"></div>
+            <div class="center-icon" id="centerIcon">✿</div>
+        </div>
+    </div>
+
+    <!-- 主页内容 -->
+    <div id="main-content">
+        <div class="container">
+            <div class="import-button" onclick="location.href='reader.html'">
+                <span>导入</span>
+            </div>
+            <div class="import-hint">在本地观看漫画</div>
+
+            <div id="user-area" style="margin-top: 30px; text-align: center;"></div>
+            <div id="comic-list-area" style="display: none; margin-top: 30px;">
+                <h2>📚 在线漫画</h2>
+                <input type="text" id="search" placeholder="搜索漫画..." onkeyup="filterComics()">
+                <div id="comic-list" class="comic-grid"></div>
+            </div>
+            <div class="copyright">✿本网站由G_灵零7所有</div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            // 检查是否已经播放过动画（sessionStorage 保证同一会话只播放一次）
+            if (sessionStorage.getItem('splashPlayed')) {
+                document.getElementById('splash').classList.add('hidden');
+                document.getElementById('main-content').style.display = 'block';
+                document.getElementById('main-content').style.opacity = '1';
+                initPage();
+                return;
+            }
+
+            // 处理从 bfcache 恢复的情况
+            window.addEventListener('pageshow', function(event) {
+                if (event.persisted) {
+                    document.getElementById('splash').classList.add('hidden');
+                    document.getElementById('main-content').style.display = 'block';
+                    document.getElementById('main-content').style.opacity = '1';
+                    initPage();
+                }
+            });
+
+            // 初次加载，执行动画
+            requestAnimationFrame(function() {
+                const splash = document.getElementById('splash');
+                const spinnerInner = document.getElementById('spinnerInner');
+                const spinnerOuter = document.getElementById('spinnerOuter');
+                const centerIcon = document.getElementById('centerIcon');
+                const mainContent = document.getElementById('main-content');
+
+                // 动画时间线（总时长 4750ms）
+                // 0-1500ms: 只有圆圈旋转
+                // 1500-2500ms: 图标逐渐显现
+                // 2500-3000ms: 两个圆圈逐渐隐去
+                // 3000-4000ms: 图标单独停留
+                // 4000-4500ms: 图标逐渐隐去
+                // 4500-4750ms: 确保图标完全隐藏
+                // 4750ms: 显示主页并渐现
+
+                setTimeout(() => {
+                    centerIcon.classList.add('visible');
+                }, 1500);
+
+                setTimeout(() => {
+                    spinnerInner.style.opacity = '0';
+                    spinnerOuter.style.opacity = '0';
+                }, 2500);
+
+                setTimeout(() => {
+                    centerIcon.classList.remove('visible');
+                }, 4000);
+
+                setTimeout(() => {
+                    splash.classList.add('hidden');
+                    mainContent.style.display = 'block';
+                    setTimeout(() => {
+                        mainContent.style.opacity = '1';
+                    }, 10);
+                    sessionStorage.setItem('splashPlayed', 'true');
+                    initPage();
+                }, 4750);
+            });
+        })();
+
+        // 页面初始化功能
+        function initPage() {
+            const isLoggedIn = localStorage.getItem('loggedIn') === 'true';
+            const currentUser = localStorage.getItem('currentUser') || '';
+
+            const userArea = document.getElementById('user-area');
+            if (isLoggedIn) {
+                userArea.innerHTML = `
+                    <p>欢迎，${currentUser}！</p>
+                    <button onclick="logout()" style="width:auto; padding:8px 20px;">退出登录</button>
+                `;
+                document.getElementById('comic-list-area').style.display = 'block';
+                renderComics();
+            } else {
+                userArea.innerHTML = `
+                    <p>您还未登录，<a href="login.html" style="color:#0070f3;">点击登录/注册</a> 可查看在线漫画。</p>
+                `;
+            }
+        }
+
+        window.logout = function() {
+            localStorage.removeItem('loggedIn');
+            localStorage.removeItem('currentUser');
+            window.location.reload();
+        };
+
+        const comics = [
+            { id: 1, title: '海贼王 第一卷', cover: 'https://via.placeholder.com/200x260?text=One+Piece', desc: '路飞的冒险开始' },
+            { id: 2, title: '火影忍者 第一卷', cover: 'https://via.placeholder.com/200x260?text=Naruto', desc: '鸣人的成长故事' },
+            { id: 3, title: '进击的巨人 第一卷', cover: 'https://via.placeholder.com/200x260?text=Attack+on+Titan', desc: '人类的生存之战' },
+        ];
+
+        function renderComics(filterText = '') {
+            const listDiv = document.getElementById('comic-list');
+            if (!listDiv) return;
+            const filtered = comics.filter(c => c.title.includes(filterText));
+            if (filtered.length === 0) {
+                listDiv.innerHTML = '<p>没有找到漫画</p>';
+                return;
+            }
+            let html = '';
+            for (let c of filtered) {
+                html += `
+                    <div class="comic-card" onclick="location.href='detail.html?id=${c.id}'">
+                        <img src="${c.cover}" alt="${c.title}">
+                        <h3>${c.title}</h3>
+                    </div>
+                `;
+            }
+            listDiv.innerHTML = html;
+        }
+
+        window.filterComics = function() {
+            const search = document.getElementById('search').value;
+            renderComics(search);
+        };
+    </script>
+</body>
+</html>

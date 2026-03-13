@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>漫画详情</title>
+    <link rel="stylesheet" href="style.css">
+    <script>
+        // 登录检查：如果未登录，重定向到主页
+        if (!localStorage.getItem('loggedIn')) {
+            window.location.replace('index.html?needlogin=1');
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <button onclick="location.href='index.html'" style="margin-bottom:20px;">⬅ 返回主页</button>
+        <div id="comic-detail">
+            <!-- 如果没有漫画数据，显示提示 -->
+            <p>暂无漫画，请先通过主页的“导入”功能上传漫画。</p>
+        </div>
+        <!-- 评论区已完全移除 -->
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const comicId = urlParams.get('id') || null;
+
+        // 漫画数据（应与主页一致）
+        const comics = [
+            { id: 1, title: '海贼王 第一卷', cover: 'https://via.placeholder.com/200x260?text=One+Piece', desc: '路飞的冒险开始' },
+            { id: 2, title: '火影忍者 第一卷', cover: 'https://via.placeholder.com/200x260?text=Naruto', desc: '鸣人的成长故事' },
+            { id: 3, title: '进击的巨人 第一卷', cover: 'https://via.placeholder.com/200x260?text=Attack+on+Titan', desc: '人类的生存之战' },
+        ];
+
+        if (comicId) {
+            const comic = comics.find(c => c.id == comicId);
+            if (comic) {
+                document.getElementById('comic-detail').innerHTML = `
+                    <img src="${comic.cover}" style="max-width:200px;">
+                    <h1>${comic.title}</h1>
+                    <p>${comic.desc}</p>
+                    <button onclick="location.href='reader.html?id=${comic.id}'" style="font-size:1.2rem;">📖 开始阅读</button>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
