@@ -28,38 +28,31 @@ export async function onRequestPost(context) {
             return Response.json({ success: false, error: '请上传封面和ZIP文件' }, { status: 400 });
         }
 
-        // 限制文件大小为 5MB，防止 Workers 超限
-        const MAX_SIZE = 5 * 1024 * 1024; // 5MB
-        if (coverFile.size > MAX_SIZE) {
-            return Response.json({ success: false, error: '封面图片不能超过 5MB' }, { status: 400 });
-        }
-        if (zipFile.size > MAX_SIZE) {
-            return Response.json({ success: false, error: 'ZIP文件不能超过 5MB' }, { status: 400 });
+        // 限制文件大小（5MB）
+        const MAX_SIZE = 5 * 1024 * 1024;
+        if (coverFile.size > MAX_SIZE || zipFile.size > MAX_SIZE) {
+            return Response.json({ success: false, error: '文件不能超过 5MB' }, { status: 400 });
         }
 
-        // 生成唯一文件名
         const timestamp = Date.now();
         const coverFileName = `covers/${timestamp}_${coverFile.name}`;
         const zipFileName = `zips/${timestamp}_${zipFile.name}`;
 
-        // 转换为 Base64
         const coverBase64 = await fileToBase64(coverFile);
         const zipBase64 = await fileToBase64(zipFile);
 
-        // GitHub API 请求头
         const headers = {
             'Authorization': `token ${env.GITHUB_TOKEN}`,
             'Accept': 'application/vnd.github+json',
             'X-GitHub-Api-Version': '2022-11-28',
             'Content-Type': 'application/json',
-            'User-Agent': 'Manga-Site-Uploader/1.0'  // 必须提供有效的 User-Agent
+            'User-Agent': 'Manga-Site-Uploader/1.0'
         };
 
-        // 根据你的仓库默认分支调整（main 或 master）
-        const branch = 'main';
+        const branch = 'main'; // 根据你的默认分支修改
 
         // 上传封面
-        const coverUploadRes = await fetch(`https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${coverFileName}`, {
+        const coverRes = await fetch(`https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${coverFileName}`, {
             method: 'PUT',
             headers,
             body: JSON.stringify({
@@ -68,13 +61,13 @@ export async function onRequestPost(context) {
                 branch
             })
         });
-        if (!coverUploadRes.ok) {
-            const errorText = await coverUploadRes.text();
-            throw new Error(`封面上传失败 (${coverUploadRes.status}): ${errorText}`);
+        if (!coverRes.ok) {
+            const errorText = await coverRes.text();
+            throw new Error(`封面上传失败 (${coverRes.status}): ${errorText}`);
         }
 
         // 上传 ZIP
-        const zipUploadRes = await fetch(`https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${zipFileName}`, {
+        const zipRes = await fetch(`https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${zipFileName}`, {
             method: 'PUT',
             headers,
             body: JSON.stringify({
@@ -83,15 +76,15 @@ export async function onRequestPost(context) {
                 branch
             })
         });
-        if (!zipUploadRes.ok) {
-            const errorText = await zipUploadRes.text();
-            throw new Error(`ZIP上传失败 (${zipUploadRes.status}): ${errorText}`);
+        if (!zipRes.ok) {
+            const errorText = await zipRes.text();
+            throw new Error(`ZIP上传失败 (${zipRes.status}): ${errorText}`);
         }
 
-        // 生成 jsDelivr CDN 链接
-        const cdnBase = `https://cdn.jsdelivr.net/gh/${env.GITHUB_OWNER}/${env.GITHUB_REPO}@${branch}`;
-        const coverUrl = `${cdnBase}/${coverFileName}`;
-        const zipUrl = `${cdnBase}/${zipFileName}`;
+        // 使用 GitHub raw 链接（无需缓存，立即生效）
+        const rawBase = `https://raw.githubusercontent.com/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/${branch}`;
+        const coverUrl = `${rawBase}/${coverFileName}`;
+        const zipUrl = `${rawBase}/${zipFileName}`;
 
         // 存入数据库
         const result = await env.DB.prepare(
@@ -114,9 +107,6 @@ export async function onRequestPost(context) {
     }
 }
 
-/**
- * 将 File 转换为 Base64（优化内存，但 5MB 以内足够安全）
- */
 async function fileToBase64(file) {
     const arrayBuffer = await file.arrayBuffer();
     const bytes = new Uint8Array(arrayBuffer);
