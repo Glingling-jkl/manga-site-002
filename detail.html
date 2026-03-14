@@ -12,6 +12,7 @@
         .comic-detail img {
             max-width: 200px;
             border-radius: 8px;
+            background: #ddd; /* 占位背景 */
         }
         .comic-detail button {
             font-size: 1.2rem;
@@ -26,6 +27,67 @@
     </div>
 
     <script>
+        // ---------- 分片下载函数（与主页相同）----------
+        const CHUNK_COUNT = 4;
+
+        async function fetchWithChunks(url) {
+            const headRes = await fetch(url, { method: 'HEAD', mode: 'cors' });
+            if (!headRes.ok) throw new Error(`HTTP ${headRes.status}`);
+
+            const contentLength = headRes.headers.get('content-length');
+            const acceptRanges = headRes.headers.get('accept-ranges');
+            if (!contentLength || acceptRanges !== 'bytes') {
+                const res = await fetch(url, { mode: 'cors' });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return await res.blob();
+            }
+
+            const total = parseInt(contentLength, 10);
+            const chunkSize = Math.ceil(total / CHUNK_COUNT);
+            let loaded = 0;
+
+            const promises = [];
+            for (let i = 0; i < CHUNK_COUNT; i++) {
+                const start = i * chunkSize;
+                const end = (i === CHUNK_COUNT - 1) ? total - 1 : Math.min(start + chunkSize - 1, total - 1);
+                if (start > end) continue;
+
+                const promise = (async () => {
+                    const res = await fetch(url, {
+                        mode: 'cors',
+                        headers: { 'Range': `bytes=${start}-${end}` }
+                    });
+                    if (!res.ok) throw new Error(`Chunk ${i} failed: ${res.status}`);
+                    const buffer = await res.arrayBuffer();
+                    loaded += buffer.byteLength;
+                    return buffer;
+                })();
+                promises.push(promise);
+            }
+
+            const buffers = await Promise.all(promises);
+            const totalLength = buffers.reduce((acc, buf) => acc + buf.byteLength, 0);
+            const merged = new Uint8Array(totalLength);
+            let offset = 0;
+            for (const buf of buffers) {
+                merged.set(new Uint8Array(buf), offset);
+                offset += buf.byteLength;
+            }
+            return new Blob([merged]);
+        }
+
+        async function loadCoverImage(imgElement, url) {
+            try {
+                const blob = await fetchWithChunks(url);
+                const objectUrl = URL.createObjectURL(blob);
+                imgElement.src = objectUrl;
+            } catch (err) {
+                console.error('封面加载失败', url, err);
+                imgElement.src = ''; // 占位
+            }
+        }
+
+        // ---------- 登录检查 ----------
         if (!localStorage.getItem('loggedIn')) {
             window.location.replace('login.html?needlogin=1');
         }
@@ -55,7 +117,7 @@
         function renderComic(comic) {
             const tags = comic.tags && Array.isArray(comic.tags) ? comic.tags.join(' · ') : '';
             const html = `
-                <img src="${comic.cover_url}" alt="${comic.title}">
+                <img id="cover-img" data-src="${comic.cover_url}" alt="${comic.title}">
                 <h1>${comic.title}</h1>
                 <p>作者：${comic.author}</p>
                 <p>上传者：${comic.uploader}</p>
@@ -66,6 +128,12 @@
                 <button onclick="startReading('${comic.zip_url}')">📖 开始阅读</button>
             `;
             document.getElementById('comic-detail').innerHTML = html;
+
+            // 加载封面
+            const coverImg = document.getElementById('cover-img');
+            if (coverImg) {
+                loadCoverImage(coverImg, comic.cover_url);
+            }
         }
 
         function startReading(zipUrl) {
