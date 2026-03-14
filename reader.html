@@ -156,18 +156,22 @@
         <button id="back-btn">← 返回</button>
         <span>点击屏幕显示/隐藏控制栏</span>
     </div>
+
     <button id="reset-btn">重置并导入</button>
+
     <div id="upload-area">
         <p>📦 选择漫画压缩包 (ZIP)</p>
         <input type="file" id="zip-upload" accept=".zip">
     </div>
+
     <div id="progress-container" class="progress-container" style="display: none;">
         <p id="progress-message">下载中...</p>
-        <div class="progress-bar">
+        <div class="progress-bar" id="progress-bar" style="display: block;">
             <div id="progress-fill" class="progress-fill"></div>
         </div>
         <p id="progress-percent">0%</p>
     </div>
+
     <div id="comic-viewer"></div>
 
     <script>
@@ -175,6 +179,8 @@
         const comicId = urlParams.get('id') || 'default';
         const zipUrl = urlParams.get('zip');
         const isOnline = !!zipUrl;
+
+        console.log('在线模式:', isOnline, 'ZIP URL:', zipUrl);
 
         const controls = document.getElementById('controls');
         const resetBtn = document.getElementById('reset-btn');
@@ -185,35 +191,46 @@
         const progressFill = document.getElementById('progress-fill');
         const progressPercent = document.getElementById('progress-percent');
         const progressMessage = document.getElementById('progress-message');
+        const progressBar = document.getElementById('progress-bar');
         let hideTimeout;
 
+        // 在线模式：隐藏重置按钮
         if (isOnline) {
             resetBtn.style.display = 'none';
         }
 
-        // ---------- 分片下载函数 ----------
-        const CHUNK_COUNT = 4; // 并发分片数（可调整）
+        // ---------- 分片下载函数（带进度）----------
+        const CHUNK_COUNT = 4;
 
         async function fetchWithChunks(url) {
-            // 先尝试获取文件大小（发送 HEAD 请求）
+            // 先尝试 HEAD 请求获取文件大小和 Range 支持
             const headRes = await fetch(url, { method: 'HEAD', mode: 'cors' });
             if (!headRes.ok) throw new Error(`HTTP ${headRes.status}`);
 
             const contentLength = headRes.headers.get('content-length');
             const acceptRanges = headRes.headers.get('accept-ranges');
+            
+            // 如果不支持分片或没有大小信息，回退到普通下载
             if (!contentLength || acceptRanges !== 'bytes') {
-                // 不支持分片，回退到普通下载
                 console.log('Server does not support range, falling back to single fetch');
+                // 隐藏进度条（因为无法显示进度）
+                progressBar.style.display = 'none';
+                progressPercent.style.display = 'none';
+                progressMessage.innerText = '下载中（无进度）...';
+                
                 const res = await fetch(url, { mode: 'cors' });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 return await res.blob();
             }
 
+            // 支持分片，显示进度条
+            progressBar.style.display = 'block';
+            progressPercent.style.display = 'block';
+            
             const total = parseInt(contentLength, 10);
             const chunkSize = Math.ceil(total / CHUNK_COUNT);
             let loaded = 0;
 
-            // 创建进度更新函数
             const updateProgress = (chunkLoaded) => {
                 loaded += chunkLoaded;
                 const percent = Math.min(100, Math.round((loaded / total) * 100));
@@ -221,7 +238,6 @@
                 progressPercent.innerText = percent + '%';
             };
 
-            // 并发请求所有分片
             const promises = [];
             for (let i = 0; i < CHUNK_COUNT; i++) {
                 const start = i * chunkSize;
@@ -242,7 +258,6 @@
             }
 
             const buffers = await Promise.all(promises);
-            // 合并所有 ArrayBuffer
             const totalLength = buffers.reduce((acc, buf) => acc + buf.byteLength, 0);
             const merged = new Uint8Array(totalLength);
             let offset = 0;
@@ -260,6 +275,7 @@
                 progressContainer.style.display = 'block';
                 progressFill.style.width = '0%';
                 progressPercent.innerText = '0%';
+                progressBar.style.display = 'block'; // 默认显示
 
                 try {
                     const blob = await fetchWithChunks(zipUrl);
@@ -278,7 +294,7 @@
             })();
         }
 
-        // ---------- 以下为原有功能（控制栏、返回按钮、重置按钮、滚动检测、阅读进度、解压）----------
+        // ---------- 控制栏显示/隐藏 ----------
         function showControls() {
             controls.classList.add('visible');
             clearTimeout(hideTimeout);
@@ -286,15 +302,19 @@
                 controls.classList.remove('visible');
             }, 2000);
         }
+
         document.body.addEventListener('click', (e) => {
             if (e.target.closest('#back-btn') || e.target.closest('#reset-btn') || e.target.closest('.retry-button')) return;
             showControls();
         });
+
         showControls();
 
+        // ---------- 返回按钮（短按回详情，长按回首页）----------
         const backBtn = document.getElementById('back-btn');
         let timer;
         let longPressed = false;
+
         backBtn.addEventListener('mousedown', () => {
             timer = setTimeout(() => {
                 longPressed = true;
@@ -312,6 +332,7 @@
             clearTimeout(timer);
             longPressed = false;
         });
+
         backBtn.addEventListener('touchstart', (e) => {
             e.preventDefault();
             timer = setTimeout(() => {
@@ -332,6 +353,7 @@
             longPressed = false;
         });
 
+        // ---------- 重置并导入按钮（仅本地模式）----------
         resetBtn.addEventListener('click', () => {
             if (isOnline) return;
             resetBtn.classList.remove('visible');
@@ -341,6 +363,7 @@
             uploadInput.click();
         });
 
+        // ---------- 滚动检测（仅本地模式）----------
         function checkScroll() {
             if (isOnline) return;
             if (uploadArea.style.display === 'none' && viewer.children.length > 0) {
@@ -358,6 +381,7 @@
         }
         window.addEventListener('scroll', checkScroll);
 
+        // ---------- 阅读进度保存 ----------
         const savedScroll = localStorage.getItem(`progress_${comicId}`);
         if (savedScroll) {
             window.addEventListener('load', () => {
@@ -374,6 +398,7 @@
             }, 200);
         });
 
+        // ---------- 本地上传处理 ----------
         uploadInput.addEventListener('change', async (event) => {
             const file = event.target.files[0];
             if (!file) return;
@@ -381,6 +406,7 @@
             await loadZipFile(file);
         });
 
+        // ---------- 核心解压函数 ----------
         async function loadZipFile(file) {
             viewer.innerHTML = '<p style="color:white; padding:20px;">解压中...</p>';
             try {
