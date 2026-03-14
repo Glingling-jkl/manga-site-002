@@ -124,6 +124,16 @@
         .retry-button:hover {
             background: #3a3a3a;
         }
+        /* 进度条样式 */
+        progress {
+            width: 80%;
+            height: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+            accent-color: #0070f3;
+        }
+        progress::-webkit-progress-bar { background-color: #333; }
+        progress::-webkit-progress-value { background-color: #0070f3; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
@@ -133,6 +143,7 @@
         <span>点击屏幕显示/隐藏控制栏</span>
     </div>
 
+    <!-- 重置按钮（在线模式下会被隐藏） -->
     <button id="reset-btn">重置并导入</button>
 
     <div id="upload-area">
@@ -143,6 +154,13 @@
     <div id="comic-viewer"></div>
 
     <script>
+        // ---------- 代理配置 ----------
+        // 是否使用代理加速（false = 直连，true = 使用代理）
+        const USE_PROXY = true;   // 先设为 false，搭好代理后改为 true
+        // 你的 Cloudflare Worker 代理域名（例如 https://your-proxy.workers.dev）
+        const PROXY_DOMAIN = 'https://github-raw-proxy.vzv-yu.workers.dev';
+        // -----------------------------
+
         const urlParams = new URLSearchParams(window.location.search);
         const comicId = urlParams.get('id') || 'default';
         const zipUrl = urlParams.get('zip');
@@ -157,26 +175,61 @@
         const viewer = document.getElementById('comic-viewer');
         let hideTimeout;
 
-        // 在线模式：隐藏重置按钮（彻底隐藏，不参与任何逻辑）
+        // 在线模式：隐藏重置按钮
         if (isOnline) {
             resetBtn.style.display = 'none';
         }
 
-        // 如果有 zipUrl，自动加载（直接使用原始链接）
+        // 如果有 zipUrl，自动加载（可能经过代理）
         if (zipUrl) {
             (async () => {
                 uploadArea.style.display = 'none';
-                viewer.innerHTML = '<p style="color:white; padding:20px;">加载中...</p>';
+                // 显示进度条容器
+                viewer.innerHTML = `
+                    <div style="text-align:center; color:white; padding:20px;">
+                        <p>下载中... <span id="progress-percent">0%</span></p>
+                        <progress id="progress-bar" value="0" max="100"></progress>
+                    </div>
+                `;
+
                 try {
-                    const response = await fetch(zipUrl, {
+                    // 如果启用了代理，构建代理 URL
+                    const targetUrl = USE_PROXY ? `${PROXY_DOMAIN}/${encodeURIComponent(zipUrl)}` : zipUrl;
+
+                    const response = await fetch(targetUrl, {
                         mode: 'cors',
                         credentials: 'omit',
                         headers: { 'Accept': '*/*' }
                     });
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status} ${response.statusText}`);
+
+                    if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
+
+                    const contentLength = response.headers.get('content-length');
+                    if (!contentLength) {
+                        // 没有文件大小信息，直接下载
+                        const blob = await response.blob();
+                        const file = new File([blob], 'comic.zip', { type: 'application/zip' });
+                        await loadZipFile(file);
+                        return;
                     }
-                    const blob = await response.blob();
+
+                    const total = parseInt(contentLength, 10);
+                    let loaded = 0;
+                    const reader = response.body.getReader();
+                    const chunks = [];
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        chunks.push(value);
+                        loaded += value.length;
+                        const percent = Math.round((loaded / total) * 100);
+                        document.getElementById('progress-bar').value = percent;
+                        document.getElementById('progress-percent').textContent = percent + '%';
+                    }
+
+                    // 合并 chunks 为 Blob
+                    const blob = new Blob(chunks, { type: 'application/zip' });
                     const file = new File([blob], 'comic.zip', { type: 'application/zip' });
                     await loadZipFile(file);
                 } catch (err) {
@@ -190,7 +243,7 @@
             })();
         }
 
-        // 控制栏显示/隐藏
+        // --- 控制栏逻辑（保持不变）---
         function showControls() {
             controls.classList.add('visible');
             clearTimeout(hideTimeout);
@@ -198,14 +251,13 @@
                 controls.classList.remove('visible');
             }, 2000);
         }
-
         document.body.addEventListener('click', (e) => {
             if (e.target.closest('#back-btn') || e.target.closest('#reset-btn') || e.target.closest('.retry-button')) return;
             showControls();
         });
         showControls();
 
-        // 返回按钮逻辑
+        // --- 返回按钮逻辑 ---
         const backBtn = document.getElementById('back-btn');
         let timer;
         let longPressed = false;
@@ -248,9 +300,9 @@
             longPressed = false;
         });
 
-        // 重置并导入按钮（仅本地模式）
+        // --- 重置并导入按钮（仅本地模式）---
         resetBtn.addEventListener('click', () => {
-            if (isOnline) return; // 在线模式不应触发
+            if (isOnline) return;
             resetBtn.classList.remove('visible');
             uploadArea.style.display = 'flex';
             viewer.innerHTML = '';
@@ -258,9 +310,9 @@
             uploadInput.click();
         });
 
-        // 滚动检测：只在本地模式且已加载图片时显示重置按钮
+        // --- 滚动检测（仅本地模式显示重置按钮）---
         function checkScroll() {
-            if (isOnline) return; // 在线模式永不显示
+            if (isOnline) return;
             if (uploadArea.style.display === 'none' && viewer.children.length > 0) {
                 const scrollY = window.scrollY;
                 const windowHeight = window.innerHeight;
@@ -274,10 +326,9 @@
                 resetBtn.classList.remove('visible');
             }
         }
-
         window.addEventListener('scroll', checkScroll);
 
-        // 阅读进度保存
+        // --- 阅读进度保存 ---
         const savedScroll = localStorage.getItem(`progress_${comicId}`);
         if (savedScroll) {
             window.addEventListener('load', () => {
@@ -286,7 +337,6 @@
                 }, 100);
             });
         }
-
         let scrollTimer;
         window.addEventListener('scroll', () => {
             clearTimeout(scrollTimer);
@@ -295,7 +345,7 @@
             }, 200);
         });
 
-        // 本地上传处理
+        // --- 本地上传处理 ---
         uploadInput.addEventListener('change', async (event) => {
             const file = event.target.files[0];
             if (!file) return;
@@ -303,7 +353,7 @@
             await loadZipFile(file);
         });
 
-        // 核心解压函数
+        // --- 核心解压函数 ---
         async function loadZipFile(file) {
             viewer.innerHTML = '<p style="color:white; padding:20px;">解压中...</p>';
             try {
