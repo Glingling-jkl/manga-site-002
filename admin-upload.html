@@ -6,7 +6,7 @@
     <title>上传漫画 - 管理员</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* 额外样式，与站点风格统一 */
+        /* 与站点风格统一的额外样式 */
         .upload-form input[type="file"] {
             padding: 8px;
             background: #f9f9f9;
@@ -18,6 +18,18 @@
         }
         .upload-form button {
             margin-top: 20px;
+        }
+        .admin-link {
+            margin-top: 30px;
+            text-align: center;
+        }
+        .admin-link a {
+            color: #0070f3;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .admin-link a:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
@@ -54,63 +66,70 @@
 
             <button type="submit">开始上传</button>
         </form>
+
         <div id="result" style="margin-top: 20px;"></div>
+
+        <div class="admin-link">
+            <a href="admin-manage.html">📋 管理已有漫画</a>
+        </div>
     </div>
 
     <script>
-        (function() {
-            // 重要：将下面的令牌替换为你自己的 ADMIN_UPLOAD_TOKEN 环境变量值
-            // 你可以在 Cloudflare Pages 后台的 Environment variables 中设置它
-            const UPLOAD_TOKEN = 'manga-upload-secret-2025';  // ⚠️ 请务必修改此值
+        // 登录检查：未登录则跳转
+        if (!localStorage.getItem('loggedIn')) {
+            window.location.replace('login.html?needlogin=1');
+        }
 
-            const form = document.getElementById('uploadForm');
-            const resultDiv = document.getElementById('result');
+        // 上传令牌（必须与 Cloudflare 环境变量 ADMIN_UPLOAD_TOKEN 一致）
+        const UPLOAD_TOKEN = 'manga-upload-secret-2025';
 
-            form.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                resultDiv.innerHTML = '上传中...';
+        const form = document.getElementById('uploadForm');
+        const resultDiv = document.getElementById('result');
 
-                const formData = new FormData(form);
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            resultDiv.innerHTML = '上传中...';
 
-                try {
-                    const response = await fetch('/api/comics/upload', {
-                        method: 'POST',
-                        headers: {
-                            'X-Upload-Token': UPLOAD_TOKEN  // 发送令牌验证
-                        },
-                        body: formData
-                    });
+            const formData = new FormData(form);
 
-                    const data = await response.json();
+            try {
+                const response = await fetch('/api/comics/upload', {
+                    method: 'POST',
+                    headers: {
+                        'X-Upload-Token': UPLOAD_TOKEN
+                    },
+                    body: formData
+                });
 
-                    if (response.ok && data.success) {
-                        resultDiv.innerHTML = `
-                            <div style="color:green; background:#e8f5e8; padding:15px; border-radius:8px;">
-                                <strong>✅ 上传成功！</strong><br>
-                                漫画ID：${data.id}<br>
-                                封面链接：<a href="${data.coverUrl}" target="_blank">查看</a><br>
-                                ZIP链接：<a href="${data.zipUrl}" target="_blank">查看</a>
-                            </div>
-                        `;
-                        form.reset();  // 清空表单以便继续上传
-                    } else {
-                        resultDiv.innerHTML = `
-                            <div style="color:red; background:#ffe8e8; padding:15px; border-radius:8px;">
-                                <strong>❌ 上传失败</strong><br>
-                                ${data.error || '未知错误'}
-                            </div>
-                        `;
-                    }
-                } catch (err) {
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    resultDiv.innerHTML = `
+                        <div style="color:green; background:#e8f5e8; padding:15px; border-radius:8px;">
+                            <strong>✅ 上传成功！</strong><br>
+                            漫画ID：${data.id}<br>
+                            封面链接：<a href="${data.coverUrl}" target="_blank">查看</a><br>
+                            ZIP链接：<a href="${data.zipUrl}" target="_blank">查看</a>
+                        </div>
+                    `;
+                    form.reset();  // 清空表单以便继续上传
+                } else {
                     resultDiv.innerHTML = `
                         <div style="color:red; background:#ffe8e8; padding:15px; border-radius:8px;">
-                            <strong>❌ 网络错误</strong><br>
-                            ${err.message}
+                            <strong>❌ 上传失败</strong><br>
+                            ${data.error || '未知错误'}
                         </div>
                     `;
                 }
-            });
-        })();
+            } catch (err) {
+                resultDiv.innerHTML = `
+                    <div style="color:red; background:#ffe8e8; padding:15px; border-radius:8px;">
+                        <strong>❌ 网络错误</strong><br>
+                        ${err.message}
+                    </div>
+                `;
+            }
+        });
     </script>
 </body>
 </html>
