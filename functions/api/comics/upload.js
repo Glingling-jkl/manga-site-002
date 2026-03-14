@@ -42,7 +42,7 @@ export async function onRequestPost(context) {
         const coverBase64 = await fileToBase64(coverFile);
         const zipBase64 = await fileToBase64(zipFile);
 
-        // GitHub API 请求头（严格按照官方文档）
+        // GitHub API 请求头
         const headers = {
             'Authorization': `token ${env.GITHUB_TOKEN}`,
             'Accept': 'application/vnd.github+json',
@@ -57,7 +57,7 @@ export async function onRequestPost(context) {
             body: JSON.stringify({
                 message: `Add cover ${coverFileName}`,
                 content: coverBase64,
-                branch: 'main'  // 如果你的默认分支不是 main，请修改
+                branch: 'main' // 如果你的默认分支是 master，请改为 'master'
             })
         });
 
@@ -123,9 +123,6 @@ export async function onRequestPost(context) {
     }
 }
 
-/**
- * 将 File 对象转换为 Base64 字符串（安全处理大文件）
- */
 async function fileToBase64(file) {
     const arrayBuffer = await file.arrayBuffer();
     const bytes = new Uint8Array(arrayBuffer);
