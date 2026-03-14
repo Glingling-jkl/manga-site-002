@@ -6,89 +6,16 @@
     <title>漫画站 · 主页</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* 启动画面样式 */
-        .splash-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: white;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-            transition: opacity 0.5s ease;
-        }
-        .splash-screen.hidden {
-            display: none;
-        }
-        .splash-content {
-            position: relative;
-            width: 220px;
-            height: 220px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        .spinner-inner {
-            position: absolute;
-            width: 180px;
-            height: 180px;
-            border: 6px solid #ffe4ec;
-            border-top-color: #ffb6c1;
-            border-radius: 50%;
-            animation: spin 1.5s infinite linear;
-            transition: opacity 0.5s ease;
-        }
-        .spinner-outer {
-            position: absolute;
-            width: 210px;
-            height: 210px;
-            border: 6px solid #ffe4ec;
-            border-top-color: #ffb6c1;
-            border-radius: 50%;
-            animation: spin 2s infinite linear reverse;
-            opacity: 0.5;
-            transition: opacity 0.5s ease;
-        }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        .center-icon {
-            position: absolute;
-            font-size: 100px;
-            color: #ffb6c1;
-            opacity: 0;
-            transition: opacity 1s ease;
-            pointer-events: none;
-            z-index: 10;
-            transform: translateY(-4px);
-        }
-        .center-icon.visible {
-            opacity: 1;
-        }
-        #main-content {
-            display: none;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-        .tags {
-            margin-top: 5px;
-            font-size: 0.8rem;
-        }
-        .tags span {
-            display: inline-block;
-            background: #f0f0f0;
-            color: #333;
-            border-radius: 12px;
-            padding: 2px 8px;
-            margin-right: 4px;
+        /* 添加图片尺寸限制 */
+        .comic-card img {
+            max-width: 100%;
+            height: auto;
+            object-fit: cover; /* 保持比例填充，防止变形 */
         }
     </style>
 </head>
 <body>
-    <!-- 启动画面 -->
+    <!-- 启动画面元素（如果之前有，保留） -->
     <div id="splash" class="splash-screen">
         <div class="splash-content">
             <div class="spinner-outer" id="spinnerOuter"></div>
@@ -98,7 +25,7 @@
     </div>
 
     <!-- 主页内容 -->
-    <div id="main-content">
+    <div id="main-content" style="display: none;">
         <div class="container">
             <div class="import-button" onclick="location.href='reader.html'">
                 <span>导入</span>
@@ -116,27 +43,21 @@
     </div>
 
     <script>
+        // 启动动画（如果你之前有，保留）
         (function() {
-            // 检查是否已播放启动动画（sessionStorage 保证同一会话只播放一次）
             if (sessionStorage.getItem('splashPlayed')) {
                 document.getElementById('splash').classList.add('hidden');
                 document.getElementById('main-content').style.display = 'block';
-                document.getElementById('main-content').style.opacity = '1';
                 initPage();
                 return;
             }
-
-            // 处理从 bfcache 恢复的情况（如后退）
             window.addEventListener('pageshow', function(event) {
                 if (event.persisted) {
                     document.getElementById('splash').classList.add('hidden');
                     document.getElementById('main-content').style.display = 'block';
-                    document.getElementById('main-content').style.opacity = '1';
                     initPage();
                 }
             });
-
-            // 启动动画时间线
             requestAnimationFrame(function() {
                 const splash = document.getElementById('splash');
                 const spinnerInner = document.getElementById('spinnerInner');
@@ -144,27 +65,25 @@
                 const centerIcon = document.getElementById('centerIcon');
                 const mainContent = document.getElementById('main-content');
 
-                setTimeout(() => centerIcon.classList.add('visible'), 1500);          // 1.5s 图标渐显
+                setTimeout(() => centerIcon.classList.add('visible'), 1500);
                 setTimeout(() => {
                     spinnerInner.style.opacity = '0';
                     spinnerOuter.style.opacity = '0';
-                }, 2500);                                                              // 2.5s 圆圈渐隐
-                setTimeout(() => centerIcon.classList.remove('visible'), 4000);        // 4.0s 图标渐隐
+                }, 2500);
+                setTimeout(() => centerIcon.classList.remove('visible'), 4000);
                 setTimeout(() => {
                     splash.classList.add('hidden');
                     mainContent.style.display = 'block';
-                    setTimeout(() => mainContent.style.opacity = '1', 10);
                     sessionStorage.setItem('splashPlayed', 'true');
                     initPage();
-                }, 4750);                                                              // 4.75s 显示主页
+                }, 4750);
             });
         })();
 
-        // 页面初始化：登录状态检查 + 加载漫画
-        async function initPage() {
+        // 页面初始化
+        function initPage() {
             const isLoggedIn = localStorage.getItem('loggedIn') === 'true';
             const currentUser = localStorage.getItem('currentUser') || '';
-
             const userArea = document.getElementById('user-area');
             if (isLoggedIn) {
                 userArea.innerHTML = `
@@ -172,12 +91,11 @@
                     <button onclick="logout()" style="width:auto; padding:8px 20px;">退出登录</button>
                 `;
                 document.getElementById('comic-list-area').style.display = 'block';
-                await loadComics();  // 从API加载漫画
+                loadComics();
             } else {
                 userArea.innerHTML = `
                     <p>您还未登录，<a href="login.html" style="color:#0070f3;">点击登录/注册</a> 可查看在线漫画。</p>
                 `;
-                document.getElementById('comic-list-area').style.display = 'none';
             }
         }
 
@@ -187,22 +105,18 @@
             window.location.reload();
         };
 
-        // 从API加载漫画列表
         async function loadComics() {
             try {
                 const resp = await fetch('/api/comics');
                 const data = await resp.json();
                 if (data.success) {
                     renderComics(data.data);
-                } else {
-                    console.error('加载漫画失败', data.error);
                 }
             } catch (err) {
-                console.error('网络错误', err);
+                console.error('加载漫画失败', err);
             }
         }
 
-        // 渲染漫画卡片
         function renderComics(comics) {
             const listDiv = document.getElementById('comic-list');
             if (!listDiv) return;
@@ -214,24 +128,21 @@
             for (let c of comics) {
                 html += `
                     <div class="comic-card" onclick="location.href='detail.html?id=${c.id}'">
-                        <img src="${c.cover_url || 'https://via.placeholder.com/200x260'}" alt="${c.title}">
+                        <img src="${c.cover_url}" alt="${c.title}">
                         <h3>${c.title}</h3>
                         <p>${c.author} · ${c.chapters}话</p>
-                        <div class="tags">${(c.tags || []).map(t => `<span>${t}</span>`).join('')}</div>
+                        <div class="tags">${c.tags.map(t => `<span>${t}</span>`).join('')}</div>
                     </div>
                 `;
             }
             listDiv.innerHTML = html;
         }
 
-        // 搜索过滤（前端过滤）
         window.filterComics = function() {
-            const search = document.getElementById('search').value.toLowerCase();
-            const cards = document.querySelectorAll('.comic-card');
-            cards.forEach(card => {
-                const title = card.querySelector('h3').innerText.toLowerCase();
-                card.style.display = title.includes(search) ? 'block' : 'none';
-            });
+            const search = document.getElementById('search').value;
+            const listDiv = document.getElementById('comic-list');
+            const filtered = comics.filter(c => c.title.includes(search));
+            renderComics(filtered);
         };
     </script>
 </body>
