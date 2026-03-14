@@ -4,7 +4,5 @@ export async function onRequestPost(context) {
     if (token !== env.ADMIN_UPLOAD_TOKEN) {
         return Response.json({ success: false, error: 'invalid token' }, { status: 403 });
     }
-    const formData = await request.formData();
-    const title = formData.get('title');
-    return Response.json({ success: true, titleReceived: title });
+    return Response.json({ success: true, message: 'token ok' });
 }
