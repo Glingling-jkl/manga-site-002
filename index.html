@@ -73,7 +73,7 @@
             opacity: 0;
             transition: opacity 0.3s ease;
         }
-        /* 主页导入按钮等样式（与之前一致） */
+        /* 主页导入按钮等样式 */
         .import-button {
             background: linear-gradient(145deg, #0066ff, #0050cc);
             color: white;
@@ -132,10 +132,23 @@
             width: 100%;
             height: 200px;
             object-fit: cover;
+            background: #ddd; /* 加载占位背景 */
         }
         .comic-card h3 {
             font-size: 16px;
             margin: 10px 0 5px;
+        }
+        .tags {
+            margin-top: 5px;
+            font-size: 0.8rem;
+        }
+        .tags span {
+            display: inline-block;
+            background: #f0f0f0;
+            color: #333;
+            border-radius: 12px;
+            padding: 2px 8px;
+            margin-right: 4px;
         }
     </style>
 </head>
@@ -168,6 +181,7 @@
     </div>
 
     <script>
+        // ---------- 启动动画 ----------
         (function() {
             if (sessionStorage.getItem('splashPlayed')) {
                 document.getElementById('splash').classList.add('hidden');
@@ -209,7 +223,81 @@
             });
         })();
 
-        // 页面初始化
+        // ---------- 全局变量 ----------
+        let comicsData = []; // 存储所有漫画数据，用于前端过滤
+
+        // ---------- 分片下载函数（通用）----------
+        const CHUNK_COUNT = 4; // 并发分片数
+
+        async function fetchWithChunks(url) {
+            // 先尝试 HEAD 请求获取文件大小和 Range 支持
+            const headRes = await fetch(url, { method: 'HEAD', mode: 'cors' });
+            if (!headRes.ok) throw new Error(`HTTP ${headRes.status}`);
+
+            const contentLength = headRes.headers.get('content-length');
+            const acceptRanges = headRes.headers.get('accept-ranges');
+            if (!contentLength || acceptRanges !== 'bytes') {
+                // 不支持分片，回退普通下载
+                const res = await fetch(url, { mode: 'cors' });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return await res.blob();
+            }
+
+            const total = parseInt(contentLength, 10);
+            const chunkSize = Math.ceil(total / CHUNK_COUNT);
+            let loaded = 0;
+
+            // 进度回调（可选）
+            const onProgress = (chunkLoaded) => {
+                loaded += chunkLoaded;
+                // 不需要显示进度条，可留空
+            };
+
+            const promises = [];
+            for (let i = 0; i < CHUNK_COUNT; i++) {
+                const start = i * chunkSize;
+                const end = (i === CHUNK_COUNT - 1) ? total - 1 : Math.min(start + chunkSize - 1, total - 1);
+                if (start > end) continue;
+
+                const promise = (async () => {
+                    const res = await fetch(url, {
+                        mode: 'cors',
+                        headers: { 'Range': `bytes=${start}-${end}` }
+                    });
+                    if (!res.ok) throw new Error(`Chunk ${i} failed: ${res.status}`);
+                    const buffer = await res.arrayBuffer();
+                    onProgress(buffer.byteLength);
+                    return buffer;
+                })();
+                promises.push(promise);
+            }
+
+            const buffers = await Promise.all(promises);
+            const totalLength = buffers.reduce((acc, buf) => acc + buf.byteLength, 0);
+            const merged = new Uint8Array(totalLength);
+            let offset = 0;
+            for (const buf of buffers) {
+                merged.set(new Uint8Array(buf), offset);
+                offset += buf.byteLength;
+            }
+            return new Blob([merged]);
+        }
+
+        // ---------- 加载封面图片到指定 img 元素 ----------
+        async function loadCoverImage(imgElement, url) {
+            try {
+                const blob = await fetchWithChunks(url);
+                const objectUrl = URL.createObjectURL(blob);
+                imgElement.src = objectUrl;
+                // 可选：释放旧 URL 以避免内存泄漏（但会在替换时自动回收？）
+                // 注意：这里不立即 revoke，因为图片还在使用。可以在图片加载完成后 revoke？但复杂，先保留。
+            } catch (err) {
+                console.error('封面加载失败', url, err);
+                imgElement.src = ''; // 显示空白或保留占位背景
+            }
+        }
+
+        // ---------- 页面初始化 ----------
         function initPage() {
             const isLoggedIn = localStorage.getItem('loggedIn') === 'true';
             const currentUser = localStorage.getItem('currentUser') || '';
@@ -239,7 +327,8 @@
                 const resp = await fetch('/api/comics');
                 const data = await resp.json();
                 if (data.success) {
-                    renderComics(data.data);
+                    comicsData = data.data; // 保存全部数据
+                    renderComics(comicsData);
                 }
             } catch (err) {
                 console.error('加载漫画失败', err);
@@ -257,7 +346,7 @@
             for (let c of comics) {
                 html += `
                     <div class="comic-card" onclick="location.href='detail.html?id=${c.id}'">
-                        <img src="${c.cover_url}" alt="${c.title}">
+                        <img data-src="${c.cover_url}" alt="${c.title}" class="cover-loading">
                         <h3>${c.title}</h3>
                         <p>${c.author} · ${c.chapters}话</p>
                         <div class="tags">${c.tags.map(t => `<span>${t}</span>`).join('')}</div>
@@ -265,17 +354,24 @@
                 `;
             }
             listDiv.innerHTML = html;
+
+            // 开始加载每张封面
+            const images = listDiv.querySelectorAll('.cover-loading');
+            images.forEach(img => {
+                const url = img.getAttribute('data-src');
+                if (url) {
+                    loadCoverImage(img, url);
+                }
+            });
         }
 
         window.filterComics = function() {
-            const search = document.getElementById('search').value;
-            const listDiv = document.getElementById('comic-list');
-            // 注意：这里需要重新过滤，但我们已经有全部漫画数据？简单起见重新加载
-            // 实际可先缓存数据，但为简化，重新加载并前端过滤
-            loadComics(); // 重新获取全部，但前端过滤需在render中实现，这里留给你扩展
-            // 简单起见，我们保留原过滤逻辑（需要全局comics变量）
-            // 但为了简化，这里只做搜索UI，实际过滤需要存储数据，此处省略
-            // 你可以自行实现前端过滤
+            const search = document.getElementById('search').value.toLowerCase();
+            const filtered = comicsData.filter(c => 
+                c.title.toLowerCase().includes(search) || 
+                c.author.toLowerCase().includes(search)
+            );
+            renderComics(filtered);
         };
     </script>
 </body>
