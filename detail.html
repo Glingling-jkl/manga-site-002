@@ -5,22 +5,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>漫画详情</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        .comic-detail {
+            text-align: center;
+        }
+        .comic-detail img {
+            max-width: 200px;
+            border-radius: 8px;
+        }
+        .comic-detail button {
+            font-size: 1.2rem;
+            margin-top: 20px;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
         <button onclick="location.href='index.html'" style="margin-bottom:20px;">⬅ 返回列表</button>
-        <div id="comic-detail" style="text-align: center;"></div>
+        <div id="comic-detail" class="comic-detail"></div>
     </div>
 
     <script>
-        // 登录检查（如果需要）
         if (!localStorage.getItem('loggedIn')) {
             window.location.replace('login.html?needlogin=1');
         }
 
         const urlParams = new URLSearchParams(window.location.search);
         const comicId = urlParams.get('id');
-
         if (!comicId) {
             document.getElementById('comic-detail').innerHTML = '<p>参数错误</p>';
         } else {
@@ -42,10 +53,9 @@
         }
 
         function renderComic(comic) {
-            // 标签数组转为字符串
             const tags = comic.tags && Array.isArray(comic.tags) ? comic.tags.join(' · ') : '';
             const html = `
-                <img src="${comic.cover_url}" alt="${comic.title}" style="max-width:200px; border-radius:8px;">
+                <img src="${comic.cover_url}" alt="${comic.title}">
                 <h1>${comic.title}</h1>
                 <p>作者：${comic.author}</p>
                 <p>上传者：${comic.uploader}</p>
@@ -53,13 +63,12 @@
                 <p>标签：${tags || '无'}</p>
                 <p>上传时间：${new Date(comic.uploaded_at).toLocaleDateString()}</p>
                 <p>${comic.description || ''}</p>
-                <button onclick="startReading('${comic.zip_url}')" style="font-size:1.2rem; margin-top:20px;">📖 开始阅读</button>
+                <button onclick="startReading('${comic.zip_url}')">📖 开始阅读</button>
             `;
             document.getElementById('comic-detail').innerHTML = html;
         }
 
         function startReading(zipUrl) {
-            // 跳转到阅读器，并传递 ZIP 地址
             window.location.href = `reader.html?zip=${encodeURIComponent(zipUrl)}`;
         }
     </script>
