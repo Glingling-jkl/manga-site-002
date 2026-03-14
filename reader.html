@@ -124,16 +124,31 @@
         .retry-button:hover {
             background: #3a3a3a;
         }
-        /* 进度条样式 */
-        progress {
+        /* 进度条样式：扁长、居中 */
+        .progress-container {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             width: 80%;
-            height: 20px;
-            border-radius: 10px;
-            overflow: hidden;
-            accent-color: #0070f3;
+            text-align: center;
+            color: white;
+            z-index: 300;
         }
-        progress::-webkit-progress-bar { background-color: #333; }
-        progress::-webkit-progress-value { background-color: #0070f3; }
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #333;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #0070f3;
+            width: 0%;
+            transition: width 0.2s;
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
@@ -143,7 +158,7 @@
         <span>点击屏幕显示/隐藏控制栏</span>
     </div>
 
-    <!-- 重置按钮（在线模式下会被隐藏） -->
+    <!-- 重置并导入按钮（仅本地模式可见） -->
     <button id="reset-btn">重置并导入</button>
 
     <div id="upload-area">
@@ -151,16 +166,18 @@
         <input type="file" id="zip-upload" accept=".zip">
     </div>
 
+    <!-- 进度条容器（初始隐藏） -->
+    <div id="progress-container" class="progress-container" style="display: none;">
+        <p id="progress-message">下载中...</p>
+        <div class="progress-bar">
+            <div id="progress-fill" class="progress-fill"></div>
+        </div>
+        <p id="progress-percent">0%</p>
+    </div>
+
     <div id="comic-viewer"></div>
 
     <script>
-        // ---------- 代理配置 ----------
-        // 是否使用代理加速（false = 直连，true = 使用代理）
-        const USE_PROXY = true;   // 先设为 false，搭好代理后改为 true
-        // 你的 Cloudflare Worker 代理域名（例如 https://your-proxy.workers.dev）
-        const PROXY_DOMAIN = 'https://github-raw-proxy.vzv-yu.workers.dev';
-        // -----------------------------
-
         const urlParams = new URLSearchParams(window.location.search);
         const comicId = urlParams.get('id') || 'default';
         const zipUrl = urlParams.get('zip');
@@ -173,6 +190,10 @@
         const uploadArea = document.getElementById('upload-area');
         const uploadInput = document.getElementById('zip-upload');
         const viewer = document.getElementById('comic-viewer');
+        const progressContainer = document.getElementById('progress-container');
+        const progressFill = document.getElementById('progress-fill');
+        const progressPercent = document.getElementById('progress-percent');
+        const progressMessage = document.getElementById('progress-message');
         let hideTimeout;
 
         // 在线模式：隐藏重置按钮
@@ -180,34 +201,25 @@
             resetBtn.style.display = 'none';
         }
 
-        // 如果有 zipUrl，自动加载（可能经过代理）
+        // 如果有 zipUrl，自动加载
         if (zipUrl) {
             (async () => {
                 uploadArea.style.display = 'none';
-                // 显示进度条容器
-                viewer.innerHTML = `
-                    <div style="text-align:center; color:white; padding:20px;">
-                        <p>下载中... <span id="progress-percent">0%</span></p>
-                        <progress id="progress-bar" value="0" max="100"></progress>
-                    </div>
-                `;
-
+                progressContainer.style.display = 'block';
                 try {
-                    // 如果启用了代理，构建代理 URL
-                    const targetUrl = USE_PROXY ? `${PROXY_DOMAIN}/${encodeURIComponent(zipUrl)}` : zipUrl;
-
-                    const response = await fetch(targetUrl, {
+                    const response = await fetch(zipUrl, {
                         mode: 'cors',
                         credentials: 'omit',
                         headers: { 'Accept': '*/*' }
                     });
-
                     if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`);
 
                     const contentLength = response.headers.get('content-length');
                     if (!contentLength) {
-                        // 没有文件大小信息，直接下载
+                        // 没有大小信息，直接下载
+                        progressMessage.innerText = '下载中...';
                         const blob = await response.blob();
+                        progressContainer.style.display = 'none';
                         const file = new File([blob], 'comic.zip', { type: 'application/zip' });
                         await loadZipFile(file);
                         return;
@@ -224,16 +236,17 @@
                         chunks.push(value);
                         loaded += value.length;
                         const percent = Math.round((loaded / total) * 100);
-                        document.getElementById('progress-bar').value = percent;
-                        document.getElementById('progress-percent').textContent = percent + '%';
+                        progressFill.style.width = percent + '%';
+                        progressPercent.innerText = percent + '%';
                     }
 
-                    // 合并 chunks 为 Blob
+                    progressContainer.style.display = 'none';
                     const blob = new Blob(chunks, { type: 'application/zip' });
                     const file = new File([blob], 'comic.zip', { type: 'application/zip' });
                     await loadZipFile(file);
                 } catch (err) {
                     console.error('加载失败:', err);
+                    progressContainer.style.display = 'none';
                     viewer.innerHTML = `
                         <p style="color:red;">加载失败：${err.message}</p>
                         <p style="color:#ccc; font-size:0.9rem;">尝试直接打开链接：<a href="${zipUrl}" target="_blank" style="color:#ffb6c1;">${zipUrl}</a></p>
@@ -243,7 +256,7 @@
             })();
         }
 
-        // --- 控制栏逻辑（保持不变）---
+        // 控制栏显示/隐藏
         function showControls() {
             controls.classList.add('visible');
             clearTimeout(hideTimeout);
@@ -257,7 +270,7 @@
         });
         showControls();
 
-        // --- 返回按钮逻辑 ---
+        // 返回按钮逻辑
         const backBtn = document.getElementById('back-btn');
         let timer;
         let longPressed = false;
@@ -300,7 +313,7 @@
             longPressed = false;
         });
 
-        // --- 重置并导入按钮（仅本地模式）---
+        // 重置并导入按钮（仅本地模式）
         resetBtn.addEventListener('click', () => {
             if (isOnline) return;
             resetBtn.classList.remove('visible');
@@ -310,7 +323,7 @@
             uploadInput.click();
         });
 
-        // --- 滚动检测（仅本地模式显示重置按钮）---
+        // 滚动检测（仅本地模式）
         function checkScroll() {
             if (isOnline) return;
             if (uploadArea.style.display === 'none' && viewer.children.length > 0) {
@@ -328,7 +341,7 @@
         }
         window.addEventListener('scroll', checkScroll);
 
-        // --- 阅读进度保存 ---
+        // 阅读进度保存
         const savedScroll = localStorage.getItem(`progress_${comicId}`);
         if (savedScroll) {
             window.addEventListener('load', () => {
@@ -345,7 +358,7 @@
             }, 200);
         });
 
-        // --- 本地上传处理 ---
+        // 本地上传处理
         uploadInput.addEventListener('change', async (event) => {
             const file = event.target.files[0];
             if (!file) return;
@@ -353,7 +366,7 @@
             await loadZipFile(file);
         });
 
-        // --- 核心解压函数 ---
+        // 核心解压函数
         async function loadZipFile(file) {
             viewer.innerHTML = '<p style="color:white; padding:20px;">解压中...</p>';
             try {
