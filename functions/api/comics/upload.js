@@ -2,7 +2,7 @@
 export async function onRequestPost(context) {
     const { request, env } = context;
 
-    // 验证上传令牌
+    // 验证上传令牌（从环境变量读取）
     const uploadToken = request.headers.get('X-Upload-Token');
     if (uploadToken !== env.ADMIN_UPLOAD_TOKEN) {
         return Response.json({ success: false, error: '无上传权限' }, { status: 403 });
@@ -18,7 +18,6 @@ export async function onRequestPost(context) {
         const pages = parseInt(formData.get('pages') || '0');
         const description = formData.get('description') || '';
 
-        // 检查必要字段
         if (!title || !author) {
             return Response.json({ success: false, error: '标题和作者不能为空' }, { status: 400 });
         }
@@ -29,26 +28,23 @@ export async function onRequestPost(context) {
             return Response.json({ success: false, error: '请上传封面和ZIP文件' }, { status: 400 });
         }
 
-        // 生成唯一文件名（避免覆盖）
+        // 生成唯一文件名
         const timestamp = Date.now();
         const coverFileName = `covers/${timestamp}_${coverFile.name}`;
         const zipFileName = `zips/${timestamp}_${zipFile.name}`;
 
-        // 将文件转换为 base64
-        const coverBytes = await coverFile.arrayBuffer();
-        const coverBase64 = btoa(String.fromCharCode(...new Uint8Array(coverBytes)));
+        // 将文件转换为 base64（避免展开运算符）
+        const coverBase64 = await fileToBase64(coverFile);
+        const zipBase64 = await fileToBase64(zipFile);
 
-        const zipBytes = await zipFile.arrayBuffer();
-        const zipBase64 = btoa(String.fromCharCode(...new Uint8Array(zipBytes)));
-
-        // 准备 GitHub API 请求头
+        // GitHub API 请求头
         const headers = {
             'Authorization': `token ${env.GITHUB_TOKEN}`,
             'Content-Type': 'application/json',
             'Accept': 'application/vnd.github.v3+json'
         };
 
-        // 上传封面到 GitHub
+        // 上传封面
         const coverUploadRes = await fetch(`https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${coverFileName}`, {
             method: 'PUT',
             headers: headers,
@@ -58,13 +54,12 @@ export async function onRequestPost(context) {
                 branch: 'main'
             })
         });
-
         if (!coverUploadRes.ok) {
             const error = await coverUploadRes.text();
             throw new Error(`封面上传失败: ${coverUploadRes.status} ${error}`);
         }
 
-        // 上传 ZIP 到 GitHub
+        // 上传 ZIP
         const zipUploadRes = await fetch(`https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${zipFileName}`, {
             method: 'PUT',
             headers: headers,
@@ -74,13 +69,12 @@ export async function onRequestPost(context) {
                 branch: 'main'
             })
         });
-
         if (!zipUploadRes.ok) {
             const error = await zipUploadRes.text();
             throw new Error(`ZIP上传失败: ${zipUploadRes.status} ${error}`);
         }
 
-        // 生成 jsDelivr CDN 加速链接
+        // 生成 CDN 链接
         const cdnBase = `https://cdn.jsdelivr.net/gh/${env.GITHUB_OWNER}/${env.GITHUB_REPO}@main`;
         const coverUrl = `${cdnBase}/${coverFileName}`;
         const zipUrl = `${cdnBase}/${zipFileName}`;
@@ -107,4 +101,17 @@ export async function onRequestPost(context) {
             error: `上传失败: ${err.message}`
         }, { status: 500 });
     }
+}
+
+/**
+ * 将 File 对象安全地转换为 Base64 字符串（避免栈溢出）
+ */
+async function fileToBase64(file) {
+    const arrayBuffer = await file.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
 }
