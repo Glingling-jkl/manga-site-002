@@ -1,6 +1,4 @@
 // functions/api/comics/upload.js
-import { Octokit } from "@octokit/core";
-
 export async function onRequestPost(context) {
     const { request, env } = context;
 
@@ -31,9 +29,6 @@ export async function onRequestPost(context) {
             return Response.json({ success: false, error: '请上传封面和ZIP文件' }, { status: 400 });
         }
 
-        // 初始化 Octokit
-        const octokit = new Octokit({ auth: env.GITHUB_TOKEN });
-
         // 生成唯一文件名（避免覆盖）
         const timestamp = Date.now();
         const coverFileName = `covers/${timestamp}_${coverFile.name}`;
@@ -46,27 +41,46 @@ export async function onRequestPost(context) {
         const zipBytes = await zipFile.arrayBuffer();
         const zipBase64 = btoa(String.fromCharCode(...new Uint8Array(zipBytes)));
 
+        // 准备 GitHub API 请求头
+        const headers = {
+            'Authorization': `token ${env.GITHUB_TOKEN}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/vnd.github.v3+json'
+        };
+
         // 上传封面到 GitHub
-        const coverUpload = await octokit.request('PUT /repos/{owner}/{repo}/contents/{path}', {
-            owner: env.GITHUB_OWNER,
-            repo: env.GITHUB_REPO,
-            path: coverFileName,
-            message: `Add cover ${coverFileName}`,
-            content: coverBase64,
-            branch: 'main'
+        const coverUploadRes = await fetch(`https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${coverFileName}`, {
+            method: 'PUT',
+            headers: headers,
+            body: JSON.stringify({
+                message: `Add cover ${coverFileName}`,
+                content: coverBase64,
+                branch: 'main'
+            })
         });
+
+        if (!coverUploadRes.ok) {
+            const error = await coverUploadRes.text();
+            throw new Error(`封面上传失败: ${coverUploadRes.status} ${error}`);
+        }
 
         // 上传 ZIP 到 GitHub
-        const zipUpload = await octokit.request('PUT /repos/{owner}/{repo}/contents/{path}', {
-            owner: env.GITHUB_OWNER,
-            repo: env.GITHUB_REPO,
-            path: zipFileName,
-            message: `Add zip ${zipFileName}`,
-            content: zipBase64,
-            branch: 'main'
+        const zipUploadRes = await fetch(`https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${zipFileName}`, {
+            method: 'PUT',
+            headers: headers,
+            body: JSON.stringify({
+                message: `Add zip ${zipFileName}`,
+                content: zipBase64,
+                branch: 'main'
+            })
         });
 
-        // 生成 jsDelivr CDN 加速链接 
+        if (!zipUploadRes.ok) {
+            const error = await zipUploadRes.text();
+            throw new Error(`ZIP上传失败: ${zipUploadRes.status} ${error}`);
+        }
+
+        // 生成 jsDelivr CDN 加速链接
         const cdnBase = `https://cdn.jsdelivr.net/gh/${env.GITHUB_OWNER}/${env.GITHUB_REPO}@main`;
         const coverUrl = `${cdnBase}/${coverFileName}`;
         const zipUrl = `${cdnBase}/${zipFileName}`;
