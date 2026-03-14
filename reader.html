@@ -5,125 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <title>全屏阅读器</title>
     <style>
+        /* 样式保持不变，请复制你之前用的完整样式 */
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            background: black;
-            color: white;
-            font-family: system-ui, sans-serif;
-            overflow-x: hidden;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-        #controls {
-            position: fixed;
-            top: 0; left: 0; right: 0;
-            background: rgba(0,0,0,0.7);
-            backdrop-filter: blur(5px);
-            padding: 16px;
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            z-index: 100;
-            transition: opacity 0.3s;
-            opacity: 0;
-            pointer-events: none;
-        }
-        #controls.visible {
-            opacity: 1;
-            pointer-events: auto;
-        }
-        #back-btn {
-            background: none;
-            border: none;
-            color: white;
-            font-size: 1.2rem;
-            padding: 8px 16px;
-            cursor: pointer;
-            border-radius: 40px;
-            background: rgba(255,255,255,0.2);
-        }
-        #back-btn:active {
-            background: rgba(255,255,255,0.4);
-        }
-        #upload-area {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            color: white;
-            font-size: 1.5rem;
-            padding: 20px;
-        }
-        #upload-area input {
-            font-size: 1.2rem;
-            padding: 15px 20px;
-            margin-top: 20px;
-            width: auto;
-            max-width: 400px;
-            background: #2a2a2a;
-            color: white;
-            border: 2px solid #0070f3;
-            border-radius: 60px;
-            cursor: pointer;
-        }
-        #comic-viewer {
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .page-img {
-            max-width: 100%;
-            height: auto;
-            display: block;
-            margin: 0 auto;
-        }
-        #reset-btn {
-            position: fixed;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #0070f3;
-            color: white;
-            border: none;
-            border-radius: 40px;
-            padding: 12px 30px;
-            font-size: 1.2rem;
-            font-weight: bold;
-            box-shadow: 0 5px 20px rgba(0,112,243,0.5);
-            cursor: pointer;
-            z-index: 200;
-            display: none;
-            transition: opacity 0.3s;
-        }
-        #reset-btn:hover {
-            background: #0051b3;
-        }
-        #reset-btn.visible {
-            display: block;
-        }
-        .retry-button {
-            font-size: 1.2rem;
-            padding: 15px 20px;
-            margin: 20px auto;
-            width: auto;
-            max-width: 400px;
-            background: #2a2a2a;
-            color: white;
-            border: 2px solid #0070f3;
-            border-radius: 60px;
-            cursor: pointer;
-            display: inline-block;
-            text-align: center;
-            border: none;
-            outline: none;
-        }
-        .retry-button:hover {
-            background: #3a3a3a;
-        }
+        body { background: black; color: white; font-family: system-ui, sans-serif; overflow-x: hidden; min-height: 100vh; display: flex; flex-direction: column; }
+        #controls { position: fixed; top: 0; left: 0; right: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(5px); padding: 16px; display: flex; align-items: center; gap: 16px; z-index: 100; transition: opacity 0.3s; opacity: 0; pointer-events: none; }
+        #controls.visible { opacity: 1; pointer-events: auto; }
+        #back-btn { background: none; border: none; color: white; font-size: 1.2rem; padding: 8px 16px; cursor: pointer; border-radius: 40px; background: rgba(255,255,255,0.2); }
+        #back-btn:active { background: rgba(255,255,255,0.4); }
+        #upload-area { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; color: white; font-size: 1.5rem; padding: 20px; }
+        #upload-area input { font-size: 1.2rem; padding: 15px 20px; margin-top: 20px; width: auto; max-width: 400px; background: #2a2a2a; color: white; border: 2px solid #0070f3; border-radius: 60px; cursor: pointer; }
+        #comic-viewer { min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+        .page-img { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+        #reset-btn { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #0070f3; color: white; border: none; border-radius: 40px; padding: 12px 30px; font-size: 1.2rem; font-weight: bold; box-shadow: 0 5px 20px rgba(0,112,243,0.5); cursor: pointer; z-index: 200; display: none; transition: opacity 0.3s; }
+        #reset-btn:hover { background: #0051b3; }
+        #reset-btn.visible { display: block; }
+        .retry-button { font-size: 1.2rem; padding: 15px 20px; margin: 20px auto; width: auto; max-width: 400px; background: #2a2a2a; color: white; border: 2px solid #0070f3; border-radius: 60px; cursor: pointer; display: inline-block; text-align: center; border: none; outline: none; }
+        .retry-button:hover { background: #3a3a3a; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
@@ -145,7 +42,10 @@
     <script>
         const urlParams = new URLSearchParams(window.location.search);
         const comicId = urlParams.get('id') || 'default';
-        const zipUrl = urlParams.get('zip');  // 从 URL 获取 ZIP 地址
+        const zipUrl = urlParams.get('zip');
+
+        // 打印 URL 以便调试
+        console.log('ZIP URL:', zipUrl);
 
         const controls = document.getElementById('controls');
         const resetBtn = document.getElementById('reset-btn');
@@ -161,17 +61,23 @@
                 viewer.innerHTML = '<p style="color:white; padding:20px;">加载中...</p>';
                 try {
                     const response = await fetch(zipUrl);
-                    if (!response.ok) throw new Error('下载失败');
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status} ${response.statusText}`);
+                    }
                     const blob = await response.blob();
                     const file = new File([blob], 'comic.zip', { type: 'application/zip' });
                     await loadZipFile(file);
                 } catch (err) {
-                    viewer.innerHTML = `<p style="color:red;">加载失败：${err.message}</p>`;
+                    viewer.innerHTML = `
+                        <p style="color:red;">加载失败：${err.message}</p>
+                        <p style="color:#ccc; font-size:0.9rem;">尝试直接打开链接：<a href="${zipUrl}" target="_blank" style="color:#ffb6c1;">${zipUrl}</a></p>
+                        <button class="retry-button" onclick="window.location.reload()">重试</button>
+                    `;
                 }
             })();
         }
 
-        // 控制栏显示/隐藏
+        // 控制栏显示/隐藏（与之前相同）
         function showControls() {
             controls.classList.add('visible');
             clearTimeout(hideTimeout);
@@ -179,18 +85,16 @@
                 controls.classList.remove('visible');
             }, 2000);
         }
-
         document.body.addEventListener('click', (e) => {
             if (e.target.closest('#back-btn') || e.target.closest('#reset-btn') || e.target.closest('.retry-button')) return;
             showControls();
         });
-
         showControls();
 
+        // 返回按钮逻辑（与之前相同）
         const backBtn = document.getElementById('back-btn');
         let timer;
         let longPressed = false;
-
         backBtn.addEventListener('mousedown', () => {
             timer = setTimeout(() => {
                 longPressed = true;
@@ -208,7 +112,6 @@
             clearTimeout(timer);
             longPressed = false;
         });
-
         backBtn.addEventListener('touchstart', (e) => {
             e.preventDefault();
             timer = setTimeout(() => {
@@ -229,6 +132,7 @@
             longPressed = false;
         });
 
+        // 重置按钮
         resetBtn.addEventListener('click', () => {
             resetBtn.classList.remove('visible');
             uploadArea.style.display = 'flex';
@@ -237,6 +141,7 @@
             uploadInput.click();
         });
 
+        // 滚动检测
         function checkScroll() {
             if (uploadArea.style.display === 'none' && viewer.children.length > 0) {
                 const scrollY = window.scrollY;
@@ -251,9 +156,9 @@
                 resetBtn.classList.remove('visible');
             }
         }
-
         window.addEventListener('scroll', checkScroll);
 
+        // 阅读进度保存
         const savedScroll = localStorage.getItem(`progress_${comicId}`);
         if (savedScroll) {
             window.addEventListener('load', () => {
@@ -262,7 +167,6 @@
                 }, 100);
             });
         }
-
         let scrollTimer;
         window.addEventListener('scroll', () => {
             clearTimeout(scrollTimer);
@@ -299,7 +203,6 @@
                     img.className = 'page-img';
                     viewer.appendChild(img);
                 }
-                // 恢复进度
                 const saved = localStorage.getItem(`progress_${comicId}`);
                 if (saved) {
                     setTimeout(() => {
