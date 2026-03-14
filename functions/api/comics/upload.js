@@ -28,25 +28,18 @@ export async function onRequestPost(context) {
             return Response.json({ success: false, error: '请上传封面和ZIP文件' }, { status: 400 });
         }
 
-        // 限制文件大小为 5MB，防止 Workers 超限
         const MAX_SIZE = 5 * 1024 * 1024;
-        if (coverFile.size > MAX_SIZE) {
-            return Response.json({ success: false, error: '封面图片不能超过 5MB' }, { status: 400 });
-        }
-        if (zipFile.size > MAX_SIZE) {
-            return Response.json({ success: false, error: 'ZIP文件不能超过 5MB' }, { status: 400 });
+        if (coverFile.size > MAX_SIZE || zipFile.size > MAX_SIZE) {
+            return Response.json({ success: false, error: '文件不能超过 5MB' }, { status: 400 });
         }
 
-        // 生成唯一文件名
         const timestamp = Date.now();
         const coverFileName = `covers/${timestamp}_${coverFile.name}`;
         const zipFileName = `zips/${timestamp}_${zipFile.name}`;
 
-        // 将文件转换为 Base64
         const coverBase64 = await fileToBase64(coverFile);
         const zipBase64 = await fileToBase64(zipFile);
 
-        // GitHub API 请求头
         const headers = {
             'Authorization': `token ${env.GITHUB_TOKEN}`,
             'Accept': 'application/vnd.github+json',
@@ -55,10 +48,9 @@ export async function onRequestPost(context) {
             'User-Agent': 'Manga-Site-Uploader/1.0'
         };
 
-        // 根据你的仓库默认分支调整（main 或 master）
-        const branch = 'main';
+        const branch = 'main'; // 根据你的默认分支调整
 
-        // 上传封面到 GitHub
+        // 上传封面
         const coverRes = await fetch(`https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${coverFileName}`, {
             method: 'PUT',
             headers,
@@ -73,7 +65,7 @@ export async function onRequestPost(context) {
             throw new Error(`封面上传失败 (${coverRes.status}): ${errorText}`);
         }
 
-        // 上传 ZIP 到 GitHub
+        // 上传 ZIP
         const zipRes = await fetch(`https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${zipFileName}`, {
             method: 'PUT',
             headers,
@@ -88,11 +80,10 @@ export async function onRequestPost(context) {
             throw new Error(`ZIP上传失败 (${zipRes.status}): ${errorText}`);
         }
 
-        // 生成 GitHub raw 基础路径
+        // 生成原始 raw 链接（无加速）
         const rawBase = `https://raw.githubusercontent.com/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/${branch}`;
-        // 使用 ghproxy.com 镜像加速（封面和ZIP都用镜像）
-        const coverUrl = `https://ghproxy.com/${rawBase}/${coverFileName}`;
-        const zipUrl = `https://ghproxy.com/${rawBase}/${zipFileName}`;
+        const coverUrl = `${rawBase}/${coverFileName}`;
+        const zipUrl = `${rawBase}/${zipFileName}`;
 
         // 存入数据库
         const result = await env.DB.prepare(
@@ -115,9 +106,6 @@ export async function onRequestPost(context) {
     }
 }
 
-/**
- * 将 File 对象安全地转换为 Base64 字符串
- */
 async function fileToBase64(file) {
     const arrayBuffer = await file.arrayBuffer();
     const bytes = new Uint8Array(arrayBuffer);
