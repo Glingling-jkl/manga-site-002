@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理漫画</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .comic-manage-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .comic-manage-item img {
+            width: 60px;
+            height: 60px;
+            object-fit: cover;
+            margin-right: 10px;
+        }
+        .comic-info {
+            flex: 1;
+        }
+        .delete-btn {
+            background: #f44336;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            padding: 5px 15px;
+            cursor: pointer;
+        }
+        .delete-btn:hover {
+            background: #d32f2f;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>📋 管理漫画</h2>
+        <div id="comic-list"></div>
+        <div id="result" style="margin-top: 20px;"></div>
+    </div>
+
+    <script>
+        const UPLOAD_TOKEN = 'manga-upload-secret-2025'; // 与你的 ADMIN_UPLOAD_TOKEN 一致
+
+        async function loadComics() {
+            const res = await fetch('/api/comics');
+            const data = await res.json();
+            if (data.success) {
+                renderComics(data.data);
+            } else {
+                document.getElementById('comic-list').innerHTML = '<p>加载失败</p>';
+            }
+        }
+
+        function renderComics(comics) {
+            const listDiv = document.getElementById('comic-list');
+            if (comics.length === 0) {
+                listDiv.innerHTML = '<p>暂无漫画</p>';
+                return;
+            }
+            let html = '';
+            for (let c of comics) {
+                html += `
+                    <div class="comic-manage-item" data-id="${c.id}">
+                        <img src="${c.cover_url}" alt="${c.title}">
+                        <div class="comic-info">
+                            <strong>${c.title}</strong> (${c.author})<br>
+                            上传者: ${c.uploader} | 上传时间: ${new Date(c.uploaded_at).toLocaleString()}
+                        </div>
+                        <button class="delete-btn" onclick="deleteComic(${c.id})">删除</button>
+                    </div>
+                `;
+            }
+            listDiv.innerHTML = html;
+        }
+
+        async function deleteComic(id) {
+            if (!confirm('确定要删除这本漫画吗？此操作不可撤销！')) {
+                return;
+            }
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '删除中...';
+            try {
+                const res = await fetch(`/api/comics/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-Upload-Token': UPLOAD_TOKEN
+                    }
+                });
+                const data = await res.json();
+                if (data.success) {
+                    resultDiv.innerHTML = '<p style="color:green;">删除成功</p>';
+                    loadComics(); // 刷新列表
+                } else {
+                    resultDiv.innerHTML = `<p style="color:red;">删除失败: ${data.error}</p>`;
+                }
+            } catch (err) {
+                resultDiv.innerHTML = `<p style="color:red;">网络错误: ${err.message}</p>`;
+            }
+        }
+
+        // 检查登录状态
+        if (!localStorage.getItem('loggedIn')) {
+            window.location.replace('login.html?needlogin=1');
+        } else {
+            loadComics();
+        }
+    </script>
+</body>
+                    </html>
