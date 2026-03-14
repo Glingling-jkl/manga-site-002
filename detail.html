@@ -1,42 +1,67 @@
-<script>
-    // 登录检查（保持原有）
-    if (!localStorage.getItem('loggedIn')) {
-        window.location.replace('index.html?needlogin=1');
-    }
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>漫画详情</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <button onclick="location.href='index.html'" style="margin-bottom:20px;">⬅ 返回列表</button>
+        <div id="comic-detail" style="text-align: center;"></div>
+    </div>
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const comicId = urlParams.get('id');
-
-    async function loadComicDetail() {
-        try {
-            const resp = await fetch(`/api/comics/${comicId}`);
-            const data = await resp.json();
-            if (data.success) {
-                renderComic(data.data);
-            } else {
-                document.getElementById('comic-detail').innerHTML = '<p>漫画不存在</p>';
-            }
-        } catch (err) {
-            document.getElementById('comic-detail').innerHTML = '<p>加载失败</p>';
+    <script>
+        // 登录检查（如果需要）
+        if (!localStorage.getItem('loggedIn')) {
+            window.location.replace('login.html?needlogin=1');
         }
-    }
 
-    function renderComic(comic) {
-        document.getElementById('comic-detail').innerHTML = `
-            <img src="${comic.cover_url}" style="max-width:200px;">
-            <h1>${comic.title}</h1>
-            <p>作者：${comic.author} · 上传者：${comic.uploader}</p>
-            <p>${comic.chapters}话 · ${comic.pages}页</p>
-            <p>标签：${comic.tags.join(' · ')}</p>
-            <p>上传时间：${new Date(comic.uploaded_at).toLocaleDateString()}</p>
-            <p>${comic.description || ''}</p>
-            <button onclick="location.href='reader.html?zip=${encodeURIComponent(comic.zip_url)}'">📖 开始阅读</button>
-        `;
-    }
+        const urlParams = new URLSearchParams(window.location.search);
+        const comicId = urlParams.get('id');
 
-    if (comicId) {
-        loadComicDetail();
-    } else {
-        document.getElementById('comic-detail').innerHTML = '<p>参数错误</p>';
-    }
-</script>
+        if (!comicId) {
+            document.getElementById('comic-detail').innerHTML = '<p>参数错误</p>';
+        } else {
+            loadComicDetail(comicId);
+        }
+
+        async function loadComicDetail(id) {
+            try {
+                const res = await fetch(`/api/comics/${id}`);
+                const data = await res.json();
+                if (data.success) {
+                    renderComic(data.data);
+                } else {
+                    document.getElementById('comic-detail').innerHTML = '<p>漫画不存在</p>';
+                }
+            } catch (err) {
+                document.getElementById('comic-detail').innerHTML = '<p>加载失败，请稍后重试</p>';
+            }
+        }
+
+        function renderComic(comic) {
+            // 标签数组转为字符串
+            const tags = comic.tags && Array.isArray(comic.tags) ? comic.tags.join(' · ') : '';
+            const html = `
+                <img src="${comic.cover_url}" alt="${comic.title}" style="max-width:200px; border-radius:8px;">
+                <h1>${comic.title}</h1>
+                <p>作者：${comic.author}</p>
+                <p>上传者：${comic.uploader}</p>
+                <p>${comic.chapters} 话 · ${comic.pages} 页</p>
+                <p>标签：${tags || '无'}</p>
+                <p>上传时间：${new Date(comic.uploaded_at).toLocaleDateString()}</p>
+                <p>${comic.description || ''}</p>
+                <button onclick="startReading('${comic.zip_url}')" style="font-size:1.2rem; margin-top:20px;">📖 开始阅读</button>
+            `;
+            document.getElementById('comic-detail').innerHTML = html;
+        }
+
+        function startReading(zipUrl) {
+            // 跳转到阅读器，并传递 ZIP 地址
+            window.location.href = `reader.html?zip=${encodeURIComponent(zipUrl)}`;
+        }
+    </script>
+</body>
+</html>
