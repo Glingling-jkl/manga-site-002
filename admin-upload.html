@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>上传漫画</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h2>📤 上传新漫画</h2>
+        <form id="uploadForm" enctype="multipart/form-data">
+            <input type="text" name="title" placeholder="漫画名 *" required>
+            <input type="text" name="author" placeholder="作者 *" required>
+            <input type="text" name="uploader" placeholder="上传者" value="admin">
+            <input type="text" name="tags" placeholder="标签（用英文逗号分隔，如 热血,冒险）">
+            <input type="number" name="chapters" placeholder="章数" value="1" min="1">
+            <input type="number" name="pages" placeholder="页数" value="0" min="0">
+            <textarea name="description" placeholder="简介"></textarea>
+            <label>封面图片 *：<input type="file" name="cover" accept="image/*" required></label>
+            <label>漫画 ZIP 文件 *：<input type="file" name="zip" accept=".zip" required></label>
+            <button type="submit">上传</button>
+        </form>
+        <div id="result" style="margin-top:20px;"></div>
+    </div>
+    <script>
+        document.getElementById('uploadForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const resp = await fetch('/api/comics/upload', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await resp.json();
+            document.getElementById('result').innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            if (data.success) {
+                alert('上传成功！');
+                e.target.reset();
+            }
+        };
+    </script>
+</body>
+</html>

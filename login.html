@@ -10,7 +10,7 @@
     <div class="login-box">
         <h2>🔐 登录漫画站</h2>
         
-        <!-- 切换登录/注册的标签 -->
+        <!-- 切换登录/注册标签 -->
         <div style="display: flex; gap: 10px; margin-bottom: 20px;">
             <button id="loginTab" style="flex:1; background:#0070f3;" onclick="showLogin()">登录</button>
             <button id="registerTab" style="flex:1; background:#666;" onclick="showRegister()">注册</button>
@@ -23,7 +23,7 @@
             <button onclick="handleLogin()">登录</button>
         </div>
 
-        <!-- 注册表单（初始隐藏） -->
+        <!-- 注册表单 -->
         <div id="registerForm" style="display: none;">
             <input type="text" id="regUsername" placeholder="用户名 (至少3位)">
             <input type="password" id="regPassword" placeholder="密码 (至少6位)">
@@ -118,7 +118,7 @@
                 if (res.ok && data.success) {
                     msg.style.color = 'green';
                     msg.innerText = '注册成功！现在可以登录了';
-                    showLogin(); // 切换到登录页
+                    showLogin();
                     document.getElementById('loginUsername').value = username;
                 } else {
                     msg.style.color = 'red';

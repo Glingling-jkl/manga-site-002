@@ -2,7 +2,6 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <!-- 允许双指缩放 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <title>全屏阅读器</title>
     <style>
@@ -44,10 +43,7 @@
             border-radius: 40px;
             background: rgba(255,255,255,0.2);
         }
-        #back-btn:active {
-            background: rgba(255,255,255,0.4);
-        }
-        /* 上传区域居中放大 */
+        #back-btn:active { background: rgba(255,255,255,0.4); }
         #upload-area {
             flex: 1;
             display: flex;
@@ -83,7 +79,6 @@
             display: block;
             margin: 0 auto;
         }
-        /* 重置按钮样式 */
         #reset-btn {
             position: fixed;
             bottom: 30px;
@@ -102,13 +97,8 @@
             display: none;
             transition: opacity 0.3s;
         }
-        #reset-btn:hover {
-            background: #0051b3;
-        }
-        #reset-btn.visible {
-            display: block;
-        }
-        /* 重新导入按钮样式（与上传区域输入框一致） */
+        #reset-btn:hover { background: #0051b3; }
+        #reset-btn.visible { display: block; }
         .retry-button {
             font-size: 1.2rem;
             padding: 15px 20px;
@@ -125,32 +115,27 @@
             border: none;
             outline: none;
         }
-        .retry-button:hover {
-            background: #3a3a3a;
-        }
+        .retry-button:hover { background: #3a3a3a; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <!-- 已移除登录检查脚本，未登录用户可自由访问 -->
 </head>
 <body>
     <div id="controls" class="visible">
         <button id="back-btn">← 返回</button>
         <span>点击屏幕显示/隐藏控制栏</span>
     </div>
-
-    <!-- 重置并导入按钮（初始隐藏） -->
     <button id="reset-btn">重置并导入</button>
 
     <div id="upload-area">
         <p>📦 选择漫画压缩包 (ZIP)</p>
         <input type="file" id="zip-upload" accept=".zip">
     </div>
-
     <div id="comic-viewer"></div>
 
     <script>
         const urlParams = new URLSearchParams(window.location.search);
         const comicId = urlParams.get('id') || 'default';
+        const zipUrl = urlParams.get('zip');  // 从URL获取ZIP地址
 
         const controls = document.getElementById('controls');
         const resetBtn = document.getElementById('reset-btn');
@@ -162,22 +147,17 @@
         function showControls() {
             controls.classList.add('visible');
             clearTimeout(hideTimeout);
-            hideTimeout = setTimeout(() => {
-                controls.classList.remove('visible');
-            }, 2000);
+            hideTimeout = setTimeout(() => controls.classList.remove('visible'), 2000);
         }
-
         document.body.addEventListener('click', (e) => {
             if (e.target.closest('#back-btn') || e.target.closest('#reset-btn') || e.target.closest('.retry-button')) return;
             showControls();
         });
-
         showControls();
 
+        // 返回按钮逻辑
         const backBtn = document.getElementById('back-btn');
-        let timer;
-        let longPressed = false;
-
+        let timer, longPressed = false;
         backBtn.addEventListener('mousedown', () => {
             timer = setTimeout(() => {
                 longPressed = true;
@@ -186,16 +166,11 @@
         });
         backBtn.addEventListener('mouseup', () => {
             clearTimeout(timer);
-            if (!longPressed) {
-                window.location.href = `detail.html?id=${comicId}`;
-            }
+            if (!longPressed) window.location.href = `detail.html?id=${comicId}`;
             longPressed = false;
         });
-        backBtn.addEventListener('mouseleave', () => {
-            clearTimeout(timer);
-            longPressed = false;
-        });
-
+        backBtn.addEventListener('mouseleave', () => { clearTimeout(timer); longPressed = false; });
+        // 触摸事件
         backBtn.addEventListener('touchstart', (e) => {
             e.preventDefault();
             timer = setTimeout(() => {
@@ -206,17 +181,12 @@
         backBtn.addEventListener('touchend', (e) => {
             e.preventDefault();
             clearTimeout(timer);
-            if (!longPressed) {
-                window.location.href = `detail.html?id=${comicId}`;
-            }
+            if (!longPressed) window.location.href = `detail.html?id=${comicId}`;
             longPressed = false;
         });
-        backBtn.addEventListener('touchcancel', () => {
-            clearTimeout(timer);
-            longPressed = false;
-        });
+        backBtn.addEventListener('touchcancel', () => { clearTimeout(timer); longPressed = false; });
 
-        // 重置并导入功能
+        // 重置按钮：清空并重新弹出文件选择
         resetBtn.addEventListener('click', () => {
             resetBtn.classList.remove('visible');
             uploadArea.style.display = 'flex';
@@ -225,7 +195,7 @@
             uploadInput.click();
         });
 
-        // 监听滚动以显示/隐藏重置按钮
+        // 滚动检测：显示/隐藏重置按钮
         function checkScroll() {
             if (uploadArea.style.display === 'none' && viewer.children.length > 0) {
                 const scrollY = window.scrollY;
@@ -240,19 +210,15 @@
                 resetBtn.classList.remove('visible');
             }
         }
-
         window.addEventListener('scroll', checkScroll);
 
         // 保存阅读进度
         const savedScroll = localStorage.getItem(`progress_${comicId}`);
         if (savedScroll) {
             window.addEventListener('load', () => {
-                setTimeout(() => {
-                    window.scrollTo(0, parseInt(savedScroll));
-                }, 100);
+                setTimeout(() => window.scrollTo(0, parseInt(savedScroll)), 100);
             });
         }
-
         let scrollTimer;
         window.addEventListener('scroll', () => {
             clearTimeout(scrollTimer);
@@ -261,20 +227,14 @@
             }, 200);
         });
 
-        // 处理文件选择
-        uploadInput.addEventListener('change', async (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            uploadArea.style.display = 'none';
+        // 核心：解压并显示图片
+        async function loadZipFile(file) {
             viewer.innerHTML = '<p style="color:white; padding:20px;">解压中，请稍候...</p>';
-
             try {
                 const zip = await JSZip.loadAsync(file);
                 const imageFiles = Object.keys(zip.files)
                     .filter(name => /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(name))
                     .sort((a, b) => a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'}));
-
                 if (imageFiles.length === 0) {
                     viewer.innerHTML = `
                         <p style="color:white; padding:20px;">压缩包中没有图片</p>
@@ -286,7 +246,6 @@
                     });
                     return;
                 }
-
                 viewer.innerHTML = '';
                 for (let name of imageFiles) {
                     const blob = await zip.files[name].async('blob');
@@ -294,16 +253,10 @@
                     const img = document.createElement('img');
                     img.src = url;
                     img.className = 'page-img';
-                    img.alt = name;
                     viewer.appendChild(img);
                 }
-
                 const saved = localStorage.getItem(`progress_${comicId}`);
-                if (saved) {
-                    setTimeout(() => {
-                        window.scrollTo(0, parseInt(saved));
-                    }, 200);
-                }
+                if (saved) setTimeout(() => window.scrollTo(0, parseInt(saved)), 200);
             } catch (err) {
                 viewer.innerHTML = `
                     <p style="color:red; padding:20px;">解压失败：${err.message}</p>
@@ -314,6 +267,31 @@
                     uploadInput.click();
                 });
             }
+        }
+
+        // 如果URL中有zip参数，自动下载并加载
+        if (zipUrl) {
+            (async () => {
+                uploadArea.style.display = 'none';
+                viewer.innerHTML = '<p style="color:white; padding:20px;">下载漫画中...</p>';
+                try {
+                    const response = await fetch(zipUrl);
+                    if (!response.ok) throw new Error(`下载失败 (HTTP ${response.status})`);
+                    const blob = await response.blob();
+                    const file = new File([blob], 'comic.zip', { type: 'application/zip' });
+                    await loadZipFile(file);
+                } catch (err) {
+                    viewer.innerHTML = `<p style="color:red;">加载失败：${err.message}</p>`;
+                }
+            })();
+        }
+
+        // 本地上传事件
+        uploadInput.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            uploadArea.style.display = 'none';
+            await loadZipFile(file);
         });
     </script>
 </body>

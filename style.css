@@ -120,3 +120,15 @@ button:hover {
     padding-top: 15px;
     border-top: 1px solid #eee;
 }
+.tags {
+    margin-top: 5px;
+    font-size: 0.8rem;
+}
+.tags span {
+    display: inline-block;
+    background: #f0f0f0;
+    color: #333;
+    border-radius: 12px;
+    padding: 2px 8px;
+    margin-right: 4px;
+}
