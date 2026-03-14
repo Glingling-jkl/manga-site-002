@@ -2,7 +2,6 @@
 export async function onRequestPost(context) {
     const { request, env } = context;
 
-    // 验证上传令牌
     const uploadToken = request.headers.get('X-Upload-Token');
     if (uploadToken !== env.ADMIN_UPLOAD_TOKEN) {
         return Response.json({ success: false, error: '无上传权限' }, { status: 403 });
@@ -28,78 +27,61 @@ export async function onRequestPost(context) {
             return Response.json({ success: false, error: '请上传封面和ZIP文件' }, { status: 400 });
         }
 
-        // 检查文件大小（GitHub 限制 100MB）
         if (coverFile.size > 100 * 1024 * 1024 || zipFile.size > 100 * 1024 * 1024) {
             return Response.json({ success: false, error: '文件不能超过 100MB' }, { status: 400 });
         }
 
-        // 生成唯一文件名
         const timestamp = Date.now();
         const coverFileName = `covers/${timestamp}_${coverFile.name}`;
         const zipFileName = `zips/${timestamp}_${zipFile.name}`;
 
-        // 将文件转换为 base64
         const coverBase64 = await fileToBase64(coverFile);
         const zipBase64 = await fileToBase64(zipFile);
 
-        // GitHub API 请求头
         const headers = {
             'Authorization': `token ${env.GITHUB_TOKEN}`,
             'Accept': 'application/vnd.github+json',
             'X-GitHub-Api-Version': '2022-11-28',
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'User-Agent': 'Manga-Site-Uploader/1.0'  // 必须提供有效的 User-Agent
         };
 
-        // 上传封面
+        const branch = 'main';  // 根据你的仓库默认分支修改
+
         const coverUploadRes = await fetch(`https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${coverFileName}`, {
             method: 'PUT',
-            headers: headers,
+            headers,
             body: JSON.stringify({
                 message: `Add cover ${coverFileName}`,
                 content: coverBase64,
-                branch: 'main' // 如果你的默认分支是 master，请改为 'master'
+                branch
             })
         });
 
         if (!coverUploadRes.ok) {
             const errorText = await coverUploadRes.text();
-            let errorDetail;
-            try {
-                errorDetail = JSON.parse(errorText);
-            } catch {
-                errorDetail = { message: errorText };
-            }
-            throw new Error(`封面上传失败 (${coverUploadRes.status}): ${errorDetail.message || '未知错误'}`);
+            throw new Error(`封面上传失败 (${coverUploadRes.status}): ${errorText}`);
         }
 
-        // 上传 ZIP
         const zipUploadRes = await fetch(`https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${zipFileName}`, {
             method: 'PUT',
-            headers: headers,
+            headers,
             body: JSON.stringify({
                 message: `Add zip ${zipFileName}`,
                 content: zipBase64,
-                branch: 'main'
+                branch
             })
         });
 
         if (!zipUploadRes.ok) {
             const errorText = await zipUploadRes.text();
-            let errorDetail;
-            try {
-                errorDetail = JSON.parse(errorText);
-            } catch {
-                errorDetail = { message: errorText };
-            }
-            throw new Error(`ZIP上传失败 (${zipUploadRes.status}): ${errorDetail.message || '未知错误'}`);
+            throw new Error(`ZIP上传失败 (${zipUploadRes.status}): ${errorText}`);
         }
 
-        // 生成 jsDelivr CDN 加速链接
-        const cdnBase = `https://cdn.jsdelivr.net/gh/${env.GITHUB_OWNER}/${env.GITHUB_REPO}@main`;
+        const cdnBase = `https://cdn.jsdelivr.net/gh/${env.GITHUB_OWNER}/${env.GITHUB_REPO}@${branch}`;
         const coverUrl = `${cdnBase}/${coverFileName}`;
         const zipUrl = `${cdnBase}/${zipFileName}`;
 
-        // 存入数据库
         const result = await env.DB.prepare(
             `INSERT INTO comics 
             (title, author, uploader, tags, chapters, pages, cover_url, zip_url, description) 
@@ -116,10 +98,7 @@ export async function onRequestPost(context) {
 
     } catch (err) {
         console.error('Upload error:', err);
-        return Response.json({ 
-            success: false, 
-            error: err.message || '未知错误'
-        }, { status: 500 });
+        return Response.json({ success: false, error: err.message }, { status: 500 });
     }
 }
 
