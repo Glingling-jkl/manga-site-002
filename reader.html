@@ -145,9 +145,9 @@
     <script>
         const urlParams = new URLSearchParams(window.location.search);
         const comicId = urlParams.get('id') || 'default';
-        const zipUrl = urlParams.get('zip');   // 从详情页传递的 ZIP 链接
+        const zipUrl = urlParams.get('zip');
 
-        console.log('ZIP URL:', zipUrl);       // 调试用，可在浏览器控制台查看
+        console.log('ZIP URL:', zipUrl); // 调试用，可在浏览器控制台查看
 
         const controls = document.getElementById('controls');
         const resetBtn = document.getElementById('reset-btn');
@@ -156,13 +156,19 @@
         const viewer = document.getElementById('comic-viewer');
         let hideTimeout;
 
-        // 如果有 zipUrl，自动加载
+        // 如果有 zipUrl，自动加载（使用 CORS 友好模式）
         if (zipUrl) {
             (async () => {
                 uploadArea.style.display = 'none';
                 viewer.innerHTML = '<p style="color:white; padding:20px;">加载中...</p>';
                 try {
-                    const response = await fetch(zipUrl);
+                    const response = await fetch(zipUrl, {
+                        mode: 'cors',          // 显式指定 CORS 模式
+                        credentials: 'omit',    // 不发送凭证
+                        headers: {
+                            'Accept': '*/*',    // 接受任何类型
+                        }
+                    });
                     if (!response.ok) {
                         throw new Error(`HTTP ${response.status} ${response.statusText}`);
                     }
@@ -170,9 +176,15 @@
                     const file = new File([blob], 'comic.zip', { type: 'application/zip' });
                     await loadZipFile(file);
                 } catch (err) {
+                    console.error('Fetch error:', err);
+                    let extraMessage = '';
+                    if (err.message.includes('Failed to fetch')) {
+                        extraMessage = '这可能是因为跨域（CORS）限制。你可以直接点击下面的链接下载文件，然后使用本地解压软件观看。';
+                    }
                     viewer.innerHTML = `
                         <p style="color:red;">加载失败：${err.message}</p>
                         <p style="color:#ccc; font-size:0.9rem;">尝试直接打开链接：<a href="${zipUrl}" target="_blank" style="color:#ffb6c1;">${zipUrl}</a></p>
+                        ${extraMessage ? `<p style="color:#ffb6c1;">${extraMessage}</p>` : ''}
                         <button class="retry-button" onclick="window.location.reload()">重试</button>
                     `;
                 }
