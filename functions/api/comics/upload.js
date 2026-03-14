@@ -1,10 +1,11 @@
+// functions/api/comics/upload.js
 export async function onRequestPost(context) {
     const { request, env } = context;
 
-    // 验证登录
-    const cookieHeader = request.headers.get('Cookie') || '';
-    if (!cookieHeader.includes('loggedIn=true')) {
-        return Response.json({ success: false, error: '请先登录' }, { status: 401 });
+    // 验证上传令牌
+    const uploadToken = request.headers.get('X-Upload-Token');
+    if (uploadToken !== env.ADMIN_UPLOAD_TOKEN) {
+        return Response.json({ success: false, error: '无上传权限' }, { status: 403 });
     }
 
     try {
@@ -17,14 +18,14 @@ export async function onRequestPost(context) {
         const pages = parseInt(formData.get('pages') || '0');
         const description = formData.get('description') || '';
 
-        // 上传封面
+        // 上传封面到 HuggingFace
         const coverFile = formData.get('cover');
         let coverUrl = '';
         if (coverFile) {
             coverUrl = await uploadToHuggingFace(coverFile, env.HF_TOKEN, env.HF_SPACE);
         }
 
-        // 上传ZIP
+        // 上传ZIP到 HuggingFace
         const zipFile = formData.get('zip');
         let zipUrl = '';
         if (zipFile) {

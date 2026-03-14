@@ -2,41 +2,115 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>上传漫画</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>上传漫画 - 管理员</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* 额外样式，与站点风格统一 */
+        .upload-form input[type="file"] {
+            padding: 8px;
+            background: #f9f9f9;
+        }
+        .upload-form label {
+            display: block;
+            margin: 15px 0 5px;
+            font-weight: bold;
+        }
+        .upload-form button {
+            margin-top: 20px;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
         <h2>📤 上传新漫画</h2>
-        <form id="uploadForm" enctype="multipart/form-data">
-            <input type="text" name="title" placeholder="漫画名 *" required>
-            <input type="text" name="author" placeholder="作者 *" required>
-            <input type="text" name="uploader" placeholder="上传者" value="admin">
-            <input type="text" name="tags" placeholder="标签（用英文逗号分隔，如 热血,冒险）">
-            <input type="number" name="chapters" placeholder="章数" value="1" min="1">
-            <input type="number" name="pages" placeholder="页数" value="0" min="0">
-            <textarea name="description" placeholder="简介"></textarea>
-            <label>封面图片 *：<input type="file" name="cover" accept="image/*" required></label>
-            <label>漫画 ZIP 文件 *：<input type="file" name="zip" accept=".zip" required></label>
-            <button type="submit">上传</button>
+        <form id="uploadForm" class="upload-form" enctype="multipart/form-data">
+            <label>漫画名 *</label>
+            <input type="text" name="title" placeholder="例如：海贼王 第一卷" required>
+
+            <label>作者 *</label>
+            <input type="text" name="author" placeholder="例如：尾田荣一郎" required>
+
+            <label>上传者</label>
+            <input type="text" name="uploader" value="admin" readonly>
+
+            <label>标签（用英文逗号分隔）</label>
+            <input type="text" name="tags" placeholder="例如：热血,冒险,少年">
+
+            <label>章数</label>
+            <input type="number" name="chapters" value="1" min="1">
+
+            <label>页数</label>
+            <input type="number" name="pages" value="0" min="0">
+
+            <label>简介</label>
+            <textarea name="description" rows="4" placeholder="简单描述漫画内容..."></textarea>
+
+            <label>封面图片 *</label>
+            <input type="file" name="cover" accept="image/*" required>
+
+            <label>漫画 ZIP 文件 *</label>
+            <input type="file" name="zip" accept=".zip,.cbz" required>
+
+            <button type="submit">开始上传</button>
         </form>
-        <div id="result" style="margin-top:20px;"></div>
+        <div id="result" style="margin-top: 20px;"></div>
     </div>
+
     <script>
-        document.getElementById('uploadForm').onsubmit = async (e) => {
-            e.preventDefault();
-            const formData = new FormData(e.target);
-            const resp = await fetch('/api/comics/upload', {
-                method: 'POST',
-                body: formData
+        (function() {
+            // 重要：将下面的令牌替换为你自己的 ADMIN_UPLOAD_TOKEN 环境变量值
+            // 你可以在 Cloudflare Pages 后台的 Environment variables 中设置它
+            const UPLOAD_TOKEN = 'manga-secret-2025';  // ⚠️ 请务必修改此值
+
+            const form = document.getElementById('uploadForm');
+            const resultDiv = document.getElementById('result');
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                resultDiv.innerHTML = '上传中...';
+
+                const formData = new FormData(form);
+
+                try {
+                    const response = await fetch('/api/comics/upload', {
+                        method: 'POST',
+                        headers: {
+                            'X-Upload-Token': UPLOAD_TOKEN  // 发送令牌验证
+                        },
+                        body: formData
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.success) {
+                        resultDiv.innerHTML = `
+                            <div style="color:green; background:#e8f5e8; padding:15px; border-radius:8px;">
+                                <strong>✅ 上传成功！</strong><br>
+                                漫画ID：${data.id}<br>
+                                封面链接：<a href="${data.coverUrl}" target="_blank">查看</a><br>
+                                ZIP链接：<a href="${data.zipUrl}" target="_blank">查看</a>
+                            </div>
+                        `;
+                        form.reset();  // 清空表单以便继续上传
+                    } else {
+                        resultDiv.innerHTML = `
+                            <div style="color:red; background:#ffe8e8; padding:15px; border-radius:8px;">
+                                <strong>❌ 上传失败</strong><br>
+                                ${data.error || '未知错误'}
+                            </div>
+                        `;
+                    }
+                } catch (err) {
+                    resultDiv.innerHTML = `
+                        <div style="color:red; background:#ffe8e8; padding:15px; border-radius:8px;">
+                            <strong>❌ 网络错误</strong><br>
+                            ${err.message}
+                        </div>
+                    `;
+                }
             });
-            const data = await resp.json();
-            document.getElementById('result').innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
-            if (data.success) {
-                alert('上传成功！');
-                e.target.reset();
-            }
-        };
+        })();
     </script>
 </body>
 </html>
