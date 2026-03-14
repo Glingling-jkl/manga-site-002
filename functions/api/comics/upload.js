@@ -2,7 +2,7 @@
 export async function onRequestPost(context) {
     const { request, env } = context;
 
-    // 验证上传令牌（从环境变量读取）
+    // 验证上传令牌
     const uploadToken = request.headers.get('X-Upload-Token');
     if (uploadToken !== env.ADMIN_UPLOAD_TOKEN) {
         return Response.json({ success: false, error: '无上传权限' }, { status: 403 });
@@ -28,12 +28,17 @@ export async function onRequestPost(context) {
             return Response.json({ success: false, error: '请上传封面和ZIP文件' }, { status: 400 });
         }
 
+        // 检查文件大小（GitHub 限制 100MB）
+        if (coverFile.size > 100 * 1024 * 1024 || zipFile.size > 100 * 1024 * 1024) {
+            return Response.json({ success: false, error: '文件不能超过 100MB' }, { status: 400 });
+        }
+
         // 生成唯一文件名
         const timestamp = Date.now();
         const coverFileName = `covers/${timestamp}_${coverFile.name}`;
         const zipFileName = `zips/${timestamp}_${zipFile.name}`;
 
-        // 将文件转换为 base64（避免展开运算符）
+        // 将文件转换为 base64
         const coverBase64 = await fileToBase64(coverFile);
         const zipBase64 = await fileToBase64(zipFile);
 
@@ -55,8 +60,15 @@ export async function onRequestPost(context) {
             })
         });
         if (!coverUploadRes.ok) {
-            const error = await coverUploadRes.text();
-            throw new Error(`封面上传失败: ${coverUploadRes.status} ${error}`);
+            const errorText = await coverUploadRes.text();
+            // 尝试解析 JSON，如果失败则返回原始错误
+            let errorDetail;
+            try {
+                errorDetail = JSON.parse(errorText);
+            } catch {
+                errorDetail = { message: errorText };
+            }
+            throw new Error(`封面上传失败 (${coverUploadRes.status}): ${errorDetail.message || '未知错误'}`);
         }
 
         // 上传 ZIP
@@ -70,8 +82,14 @@ export async function onRequestPost(context) {
             })
         });
         if (!zipUploadRes.ok) {
-            const error = await zipUploadRes.text();
-            throw new Error(`ZIP上传失败: ${zipUploadRes.status} ${error}`);
+            const errorText = await zipUploadRes.text();
+            let errorDetail;
+            try {
+                errorDetail = JSON.parse(errorText);
+            } catch {
+                errorDetail = { message: errorText };
+            }
+            throw new Error(`ZIP上传失败 (${zipUploadRes.status}): ${errorDetail.message || '未知错误'}`);
         }
 
         // 生成 CDN 链接
@@ -96,15 +114,16 @@ export async function onRequestPost(context) {
 
     } catch (err) {
         console.error('Upload error:', err);
+        // 确保返回 JSON，即使内部错误也返回 JSON
         return Response.json({ 
             success: false, 
-            error: `上传失败: ${err.message}`
+            error: err.message || '未知错误'
         }, { status: 500 });
     }
 }
 
 /**
- * 将 File 对象安全地转换为 Base64 字符串（避免栈溢出）
+ * 将 File 对象转换为 Base64 字符串
  */
 async function fileToBase64(file) {
     const arrayBuffer = await file.arrayBuffer();
