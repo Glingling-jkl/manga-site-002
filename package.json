@@ -1,0 +1,7 @@
+{
+  "name": "manga-site",
+  "version": "1.0.0",
+  "dependencies": {
+    "repohub": "^1.0.0"
+  }
+}

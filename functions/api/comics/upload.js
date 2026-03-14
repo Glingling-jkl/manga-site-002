@@ -1,4 +1,6 @@
 // functions/api/comics/upload.js
+import { createRepHub } from 'repohub';
+
 export async function onRequestPost(context) {
     const { request, env } = context;
 
@@ -18,101 +20,74 @@ export async function onRequestPost(context) {
         const pages = parseInt(formData.get('pages') || '0');
         const description = formData.get('description') || '';
 
-        // 检查必要字段
         if (!title || !author) {
             return Response.json({ success: false, error: '标题和作者不能为空' }, { status: 400 });
         }
 
-        // 获取封面和ZIP文件
         const coverFile = formData.get('cover');
         const zipFile = formData.get('zip');
         if (!coverFile || !zipFile) {
             return Response.json({ success: false, error: '请上传封面和ZIP文件' }, { status: 400 });
         }
 
-        // 上传封面到 HuggingFace
-        let coverUrl = '';
-        try {
-            coverUrl = await uploadToHuggingFace(coverFile, env.HF_TOKEN, env.HF_SPACE);
-        } catch (err) {
-            return Response.json({ success: false, error: `封面上传失败: ${err.message}` }, { status: 500 });
-        }
+        // 初始化 RepoHub
+        const repoHub = createRepHub({
+            ghToken: env.GITHUB_TOKEN,
+            ghRepo: env.GITHUB_REPO,
+            ghOwner: env.GITHUB_OWNER
+        });
 
-        // 上传ZIP到 HuggingFace
-        let zipUrl = '';
-        try {
-            zipUrl = await uploadToHuggingFace(zipFile, env.HF_TOKEN, env.HF_SPACE);
-        } catch (err) {
-            return Response.json({ success: false, error: `ZIP上传失败: ${err.message}` }, { status: 500 });
-        }
+        // 生成唯一文件名（避免覆盖）
+        const timestamp = Date.now();
+        const coverFileName = `covers/${timestamp}_${coverFile.name}`;
+        const zipFileName = `zips/${timestamp}_${zipFile.name}`;
+
+        // 将文件转换为 base64
+        const coverBytes = await coverFile.arrayBuffer();
+        const coverBase64 = btoa(String.fromCharCode(...new Uint8Array(coverBytes)));
+
+        const zipBytes = await zipFile.arrayBuffer();
+        const zipBase64 = btoa(String.fromCharCode(...new Uint8Array(zipBytes)));
+
+        // 上传封面
+        const coverUpload = await repoHub.upload({
+            mimeType: coverFile.name.split('.').pop() || 'jpg',
+            content: coverBase64,
+            path: 'covers'
+        });
+
+        // 上传 ZIP
+        const zipUpload = await repoHub.upload({
+            mimeType: 'zip',
+            content: zipBase64,
+            path: 'zips'
+        });
+
+        // 生成 jsDelivr CDN 加速链接 [citation:4][citation:8]
+        const cdnBase = `https://cdn.jsdelivr.net/gh/${env.GITHUB_OWNER}/${env.GITHUB_REPO}@main`;
+        const coverUrl = `${cdnBase}/${coverUpload.path}`;
+        const zipUrl = `${cdnBase}/${zipUpload.path}`;
 
         // 存入数据库
-        try {
-            const result = await env.DB.prepare(
-                `INSERT INTO comics 
-                (title, author, uploader, tags, chapters, pages, cover_url, zip_url, description) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-            ).bind(title, author, uploader, tags, chapters, pages, coverUrl, zipUrl, description)
-             .run();
+        const result = await env.DB.prepare(
+            `INSERT INTO comics 
+            (title, author, uploader, tags, chapters, pages, cover_url, zip_url, description) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ).bind(title, author, uploader, tags, chapters, pages, coverUrl, zipUrl, description)
+         .run();
 
-            return Response.json({
-                success: true,
-                id: result.meta.last_row_id,
-                coverUrl,
-                zipUrl
-            });
-        } catch (dbErr) {
-            return Response.json({ success: false, error: `数据库错误: ${dbErr.message}` }, { status: 500 });
-        }
+        return Response.json({
+            success: true,
+            id: result.meta.last_row_id,
+            coverUrl,
+            zipUrl
+        });
 
     } catch (err) {
-        // 捕获其他未知错误
+        console.error('Upload error:', err);
         return Response.json({ 
             success: false, 
-            error: `服务器内部错误: ${err.message}`,
-            stack: err.stack  // 可选，帮助调试
+            error: `上传失败: ${err.message}`
         }, { status: 500 });
     }
-}
-
-/**
- * 上传文件到 HuggingFace Space
- * @param {File} file 要上传的文件
- * @param {string} token HuggingFace 访问令牌（Write权限）
- * @param {string} spaceName Space名称，格式 "用户名/空间名"
- * @returns {Promise<string>} 上传后文件的公开访问URL
- */
-async function uploadToHuggingFace(file, token, spaceName) {
-    if (!token) {
-        throw new Error('HF_TOKEN 环境变量未设置');
-    }
-    if (!spaceName) {
-        throw new Error('HF_SPACE 环境变量未设置');
-    }
-
-    const [user, repo] = spaceName.split('/');
-    const url = `https://huggingface.co/api/repos/${user}/${repo}/upload`;
-
-    const formData = new FormData();
-    formData.append('file', file, file.name);
-
-    const resp = await fetch(url, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: formData
-    });
-
-    if (!resp.ok) {
-        let errorText = '';
-        try {
-            errorText = await resp.text();
-        } catch (e) {
-            errorText = '无法读取错误详情';
-        }
-        throw new Error(`HTTP ${resp.status} ${resp.statusText}: ${errorText}`);
-    }
-
-    const data = await resp.json();
-    // 返回公开访问URL（根据HuggingFace Space的文件路径）
-    return `https://huggingface.co/spaces/${spaceName}/raw/main/${file.name}`;
 }
