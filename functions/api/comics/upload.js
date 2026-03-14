@@ -42,11 +42,12 @@ export async function onRequestPost(context) {
         const coverBase64 = await fileToBase64(coverFile);
         const zipBase64 = await fileToBase64(zipFile);
 
-        // GitHub API 请求头
+        // GitHub API 请求头（严格按照官方文档）
         const headers = {
             'Authorization': `token ${env.GITHUB_TOKEN}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/vnd.github.v3+json'
+            'Accept': 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+            'Content-Type': 'application/json'
         };
 
         // 上传封面
@@ -56,12 +57,12 @@ export async function onRequestPost(context) {
             body: JSON.stringify({
                 message: `Add cover ${coverFileName}`,
                 content: coverBase64,
-                branch: 'main'
+                branch: 'main'  // 如果你的默认分支不是 main，请修改
             })
         });
+
         if (!coverUploadRes.ok) {
             const errorText = await coverUploadRes.text();
-            // 尝试解析 JSON，如果失败则返回原始错误
             let errorDetail;
             try {
                 errorDetail = JSON.parse(errorText);
@@ -81,6 +82,7 @@ export async function onRequestPost(context) {
                 branch: 'main'
             })
         });
+
         if (!zipUploadRes.ok) {
             const errorText = await zipUploadRes.text();
             let errorDetail;
@@ -92,7 +94,7 @@ export async function onRequestPost(context) {
             throw new Error(`ZIP上传失败 (${zipUploadRes.status}): ${errorDetail.message || '未知错误'}`);
         }
 
-        // 生成 CDN 链接
+        // 生成 jsDelivr CDN 加速链接
         const cdnBase = `https://cdn.jsdelivr.net/gh/${env.GITHUB_OWNER}/${env.GITHUB_REPO}@main`;
         const coverUrl = `${cdnBase}/${coverFileName}`;
         const zipUrl = `${cdnBase}/${zipFileName}`;
@@ -114,7 +116,6 @@ export async function onRequestPost(context) {
 
     } catch (err) {
         console.error('Upload error:', err);
-        // 确保返回 JSON，即使内部错误也返回 JSON
         return Response.json({ 
             success: false, 
             error: err.message || '未知错误'
@@ -123,7 +124,7 @@ export async function onRequestPost(context) {
 }
 
 /**
- * 将 File 对象转换为 Base64 字符串
+ * 将 File 对象转换为 Base64 字符串（安全处理大文件）
  */
 async function fileToBase64(file) {
     const arrayBuffer = await file.arrayBuffer();
