@@ -133,6 +133,7 @@
         <span>点击屏幕显示/隐藏控制栏</span>
     </div>
 
+    <!-- 重置并导入按钮（仅本地模式可见） -->
     <button id="reset-btn">重置并导入</button>
 
     <div id="upload-area">
@@ -145,9 +146,10 @@
     <script>
         const urlParams = new URLSearchParams(window.location.search);
         const comicId = urlParams.get('id') || 'default';
-        const zipUrl = urlParams.get('zip');
+        const zipUrl = urlParams.get('zip');          // 在线漫画链接（若有）
+        const isOnline = !!zipUrl;                     // 是否为在线模式
 
-        console.log('ZIP URL:', zipUrl); // 调试用，可在浏览器控制台查看
+        console.log('在线模式:', isOnline, 'ZIP URL:', zipUrl);
 
         const controls = document.getElementById('controls');
         const resetBtn = document.getElementById('reset-btn');
@@ -156,42 +158,58 @@
         const viewer = document.getElementById('comic-viewer');
         let hideTimeout;
 
-        // 如果有 zipUrl，自动加载（使用 CORS 友好模式）
-        if (zipUrl) {
+        // --- 在线漫画加载（优先使用 jsDelivr CDN 加速）---
+        if (isOnline) {
             (async () => {
                 uploadArea.style.display = 'none';
-                viewer.innerHTML = '<p style="color:white; padding:20px;">加载中...</p>';
+                viewer.innerHTML = '<p style="color:white; padding:20px;">连接中...</p>';
+
+                // 构造 jsDelivr 链接（加速尝试）
+                const jsdelivrUrl = zipUrl.replace(
+                    'raw.githubusercontent.com',
+                    'cdn.jsdelivr.net/gh'
+                ).replace('/main/', '@main/'); // 注意分支名，根据你的仓库调整（如果分支不是 main 请修改）
+
+                // 尝试用 jsDelivr 下载，失败则回退到 raw
+                let response;
                 try {
-                    const response = await fetch(zipUrl, {
-                        mode: 'cors',          // 显式指定 CORS 模式
-                        credentials: 'omit',    // 不发送凭证
-                        headers: {
-                            'Accept': '*/*',    // 接受任何类型
-                        }
+                    viewer.innerHTML = '<p style="color:white; padding:20px;">尝试加速下载...</p>';
+                    response = await fetch(jsdelivrUrl, {
+                        mode: 'cors',
+                        credentials: 'omit',
+                        headers: { 'Accept': '*/*' }
                     });
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status} ${response.statusText}`);
-                    }
+                    if (!response.ok) throw new Error(`jsDelivr 返回 ${response.status}`);
+                    console.log('使用 jsDelivr 加速');
+                } catch (err) {
+                    console.warn('jsDelivr 失败，回退到 raw', err);
+                    viewer.innerHTML = '<p style="color:white; padding:20px;">使用直连下载...</p>';
+                    response = await fetch(zipUrl, {
+                        mode: 'cors',
+                        credentials: 'omit',
+                        headers: { 'Accept': '*/*' }
+                    });
+                    if (!response.ok) throw new Error(`raw 链接也失败: ${response.status}`);
+                }
+
+                try {
+                    // 下载并解压
+                    viewer.innerHTML = '<p style="color:white; padding:20px;">下载中...</p>';
                     const blob = await response.blob();
                     const file = new File([blob], 'comic.zip', { type: 'application/zip' });
                     await loadZipFile(file);
                 } catch (err) {
-                    console.error('Fetch error:', err);
-                    let extraMessage = '';
-                    if (err.message.includes('Failed to fetch')) {
-                        extraMessage = '这可能是因为跨域（CORS）限制。你可以直接点击下面的链接下载文件，然后使用本地解压软件观看。';
-                    }
+                    console.error('加载失败:', err);
                     viewer.innerHTML = `
                         <p style="color:red;">加载失败：${err.message}</p>
-                        <p style="color:#ccc; font-size:0.9rem;">尝试直接打开链接：<a href="${zipUrl}" target="_blank" style="color:#ffb6c1;">${zipUrl}</a></p>
-                        ${extraMessage ? `<p style="color:#ffb6c1;">${extraMessage}</p>` : ''}
+                        <p style="color:#ccc; font-size:0.9rem;">直接打开链接测试：<a href="${zipUrl}" target="_blank" style="color:#ffb6c1;">${zipUrl}</a></p>
                         <button class="retry-button" onclick="window.location.reload()">重试</button>
                     `;
                 }
             })();
         }
 
-        // 控制栏显示/隐藏
+        // --- 控制栏显示/隐藏 ---
         function showControls() {
             controls.classList.add('visible');
             clearTimeout(hideTimeout);
@@ -204,10 +222,9 @@
             if (e.target.closest('#back-btn') || e.target.closest('#reset-btn') || e.target.closest('.retry-button')) return;
             showControls();
         });
-
         showControls();
 
-        // 返回按钮（短按回详情，长按回首页）
+        // --- 返回按钮逻辑 ---
         const backBtn = document.getElementById('back-btn');
         let timer;
         let longPressed = false;
@@ -250,8 +267,9 @@
             longPressed = false;
         });
 
-        // 重置并导入按钮
+        // --- 重置并导入按钮（仅本地模式）---
         resetBtn.addEventListener('click', () => {
+            if (isOnline) return; // 在线模式下不应显示，但以防万一
             resetBtn.classList.remove('visible');
             uploadArea.style.display = 'flex';
             viewer.innerHTML = '';
@@ -259,8 +277,9 @@
             uploadInput.click();
         });
 
-        // 滚动到底部时显示重置按钮
+        // --- 滚动检测：只在本地模式且已加载图片时显示重置按钮 ---
         function checkScroll() {
+            if (isOnline) return; // 在线模式永远不显示重置按钮
             if (uploadArea.style.display === 'none' && viewer.children.length > 0) {
                 const scrollY = window.scrollY;
                 const windowHeight = window.innerHeight;
@@ -277,7 +296,7 @@
 
         window.addEventListener('scroll', checkScroll);
 
-        // 阅读进度保存
+        // --- 阅读进度保存 ---
         const savedScroll = localStorage.getItem(`progress_${comicId}`);
         if (savedScroll) {
             window.addEventListener('load', () => {
@@ -295,7 +314,7 @@
             }, 200);
         });
 
-        // 本地上传处理
+        // --- 本地上传处理 ---
         uploadInput.addEventListener('change', async (event) => {
             const file = event.target.files[0];
             if (!file) return;
@@ -303,7 +322,7 @@
             await loadZipFile(file);
         });
 
-        // 核心解压函数
+        // --- 核心解压函数（供在线和本地共同调用）---
         async function loadZipFile(file) {
             viewer.innerHTML = '<p style="color:white; padding:20px;">解压中...</p>';
             try {
@@ -325,7 +344,7 @@
                     img.alt = name;
                     viewer.appendChild(img);
                 }
-                // 恢复进度
+                // 恢复阅读进度
                 const saved = localStorage.getItem(`progress_${comicId}`);
                 if (saved) {
                     setTimeout(() => {
