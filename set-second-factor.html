@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设置第二层验证码</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .set-form {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        .set-form input, .set-form button {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>🔐 设置第二层验证码</h2>
+        <p>为了账户安全，请设置一个8位的第二层验证码。它将在IP地址变化时要求输入。</p>
+        <form id="setForm" class="set-form">
+            <input type="text" id="secondFactor" placeholder="8位验证码 (可包含字母、数字、特殊符号)" maxlength="8" required>
+            <button type="submit">设置</button>
+        </form>
+        <div id="result" style="margin-top: 20px;"></div>
+    </div>
+
+    <script>
+        if (!localStorage.getItem('loggedIn')) {
+            window.location.replace('login.html?needlogin=1');
+        }
+        const currentUser = localStorage.getItem('currentUser') || '';
+
+        document.getElementById('setForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const secondFactor = document.getElementById('secondFactor').value.trim();
+            const resultDiv = document.getElementById('result');
+            if (secondFactor.length !== 8) {
+                resultDiv.innerHTML = '<p style="color:red;">验证码必须为8位</p>';
+                return;
+            }
+            resultDiv.innerHTML = '设置中...';
+            try {
+                const res = await fetch('/api/set-second-factor', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Auth-Username': currentUser
+                    },
+                    body: JSON.stringify({ secondFactor })
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    resultDiv.innerHTML = '<p style="color:green;">✅ 设置成功！即将返回主页...</p>';
+                    setTimeout(() => {
+                        window.location.href = 'index.html';
+                    }, 2000);
+                } else {
+                    resultDiv.innerHTML = `<p style="color:red;">❌ 设置失败: ${data.error}</p>`;
+                }
+            } catch (err) {
+                resultDiv.innerHTML = `<p style="color:red;">网络错误: ${err.message}</p>`;
+            }
+        });
+    </script>
+</body>
+</html>
