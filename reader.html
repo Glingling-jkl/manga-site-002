@@ -159,7 +159,7 @@
                 #3399ff 20px
             );
             background-size: 200% 100%;
-            animation: move 2s linear infinite; /* 从1s改为2s */
+            animation: move 2s linear infinite;
         }
         @keyframes move {
             0% { background-position: 0 0; }
@@ -218,116 +218,12 @@
         const threadInfo = document.getElementById('thread-info');
         let hideTimeout;
 
+        // 在线模式隐藏重置按钮
         if (isOnline) {
             resetBtn.style.display = 'none';
         }
 
-        // ---------- 分片下载函数（实时进度）----------
-        const CHUNK_COUNT = 12;
-
-        async function fetchWithChunks(url) {
-            const headRes = await fetch(url, { method: 'HEAD', mode: 'cors' });
-            if (!headRes.ok) throw new Error(`HTTP ${headRes.status}`);
-
-            const contentLength = headRes.headers.get('content-length');
-            const acceptRanges = headRes.headers.get('accept-ranges');
-            
-            // 情况1：支持分片且有大小信息 -> 多线程下载
-            if (acceptRanges === 'bytes' && contentLength) {
-                threadInfo.innerText = `多线程 (${CHUNK_COUNT} 线程)`;
-                progressFill.classList.remove('indeterminate');
-                const total = parseInt(contentLength, 10);
-                const chunkSize = Math.ceil(total / CHUNK_COUNT);
-                let loaded = 0;
-
-                const chunkPromises = [];
-                for (let i = 0; i < CHUNK_COUNT; i++) {
-                    const start = i * chunkSize;
-                    const end = (i === CHUNK_COUNT - 1) ? total - 1 : Math.min(start + chunkSize - 1, total - 1);
-                    if (start > end) continue;
-
-                    const promise = (async () => {
-                        const res = await fetch(url, {
-                            mode: 'cors',
-                            headers: { 'Range': `bytes=${start}-${end}` }
-                        });
-                        if (!res.ok) throw new Error(`Chunk ${i} failed: ${res.status}`);
-
-                        const reader = res.body.getReader();
-                        const chunks = [];
-                        while (true) {
-                            const { done, value } = await reader.read();
-                            if (done) break;
-                            chunks.push(value);
-                            loaded += value.length;
-                            const percent = Math.min(100, Math.round((loaded / total) * 100));
-                            progressFill.style.width = percent + '%';
-                            progressPercent.innerText = percent + '%';
-                        }
-                        const totalLength = chunks.reduce((acc, val) => acc + val.length, 0);
-                        const merged = new Uint8Array(totalLength);
-                        let offset = 0;
-                        for (const chunk of chunks) {
-                            merged.set(new Uint8Array(chunk), offset);
-                            offset += chunk.length;
-                        }
-                        return merged;
-                    })();
-                    chunkPromises.push(promise);
-                }
-
-                const chunksData = await Promise.all(chunkPromises);
-                return new Blob(chunksData, { type: 'application/zip' });
-            }
-            
-            // 情况2：不支持分片，但有大小信息 -> 单线程下载，显示正常进度条
-            if (contentLength) {
-                threadInfo.innerText = '单线程下载';
-                progressFill.classList.remove('indeterminate');
-                const total = parseInt(contentLength, 10);
-                let loaded = 0;
-
-                const res = await fetch(url, { mode: 'cors' });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-                const reader = res.body.getReader();
-                const chunks = [];
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    chunks.push(value);
-                    loaded += value.length;
-                    const percent = Math.min(100, Math.round((loaded / total) * 100));
-                    progressFill.style.width = percent + '%';
-                    progressPercent.innerText = percent + '%';
-                }
-                const totalLength = chunks.reduce((acc, val) => acc + val.length, 0);
-                const merged = new Uint8Array(totalLength);
-                let offset = 0;
-                for (const chunk of chunks) {
-                    merged.set(new Uint8Array(chunk), offset);
-                    offset += chunk.length;
-                }
-                return new Blob([merged], { type: 'application/zip' });
-            }
-
-            // 情况3：没有大小信息（既不支持分片也无content-length） -> 单线程下载，条纹动画
-            threadInfo.innerText = '单线程下载（无进度）';
-            progressFill.classList.add('indeterminate');
-            progressFill.style.width = '100%';
-            progressPercent.innerText = '--%';
-            progressMessage.innerText = '下载中...';
-
-            const res = await fetch(url, { mode: 'cors' });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const blob = await res.blob();
-            // 下载完成后移除不确定样式
-            progressFill.classList.remove('indeterminate');
-            progressFill.style.width = '0%';
-            return blob;
-        }
-
-        // ---------- 在线加载 ----------
+        // ---------- 在线加载（使用 Worker 代理）----------
         if (zipUrl) {
             (async () => {
                 uploadArea.style.display = 'none';
@@ -341,10 +237,49 @@
                 threadInfo.innerText = '';
 
                 try {
-                    const blob = await fetchWithChunks(zipUrl);
+                    // 使用代理下载
+                    const proxyUrl = `/api/proxy?url=${encodeURIComponent(zipUrl)}`;
+                    const response = await fetch(proxyUrl, { mode: 'cors' });
+
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                    const contentLength = response.headers.get('content-length');
+
+                    if (contentLength) {
+                        // 有大小信息，显示确定进度
+                        threadInfo.innerText = '代理下载';
+                        const total = parseInt(contentLength, 10);
+                        let loaded = 0;
+                        const reader = response.body.getReader();
+                        const chunks = [];
+
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
+                            chunks.push(value);
+                            loaded += value.length;
+                            const percent = Math.min(100, Math.round((loaded / total) * 100));
+                            progressFill.style.width = percent + '%';
+                            progressPercent.innerText = percent + '%';
+                        }
+
+                        // 合并数据
+                        const blob = new Blob(chunks, { type: 'application/zip' });
+                        const file = new File([blob], 'comic.zip', { type: 'application/zip' });
+                        await loadZipFile(file);
+                    } else {
+                        // 无大小信息，使用条纹动画
+                        threadInfo.innerText = '下载中（无进度）';
+                        progressFill.classList.add('indeterminate');
+                        progressFill.style.width = '100%';
+                        progressPercent.innerText = '--%';
+
+                        const blob = await response.blob();
+                        const file = new File([blob], 'comic.zip', { type: 'application/zip' });
+                        await loadZipFile(file);
+                    }
+
                     progressContainer.style.display = 'none';
-                    const file = new File([blob], 'comic.zip', { type: 'application/zip' });
-                    await loadZipFile(file);
                 } catch (err) {
                     console.error('加载失败:', err);
                     progressContainer.style.display = 'none';
