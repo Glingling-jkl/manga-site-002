@@ -38,11 +38,6 @@
         .user-form input, .user-form select, .user-form button {
             margin: 10px 0;
         }
-        .role-selector {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
         table {
             width: 100%;
             border-collapse: collapse;
@@ -115,15 +110,18 @@
     </div>
 
     <script>
+        // 检查登录和权限
         if (!localStorage.getItem('loggedIn')) {
             window.location.replace('login.html?needlogin=1');
         }
         const currentUserRole = localStorage.getItem('userRole') || '';
+        const currentUser = localStorage.getItem('currentUser') || '';
         if (currentUserRole !== 'system' && currentUserRole !== 'admin') {
             window.location.replace('index.html');
         }
 
-        if (currentUserRole === 'system') {
+        // 根据角色显示管理选项卡
+        if (currentUserRole === 'system' || currentUserRole === 'admin') {
             document.getElementById('manageTab').style.display = 'block';
         }
 
@@ -143,7 +141,8 @@
         if (currentUserRole === 'system') {
             document.getElementById('adminOption').style.display = 'block';
             document.getElementById('systemOption').style.display = 'block';
-        } else {
+        } else if (currentUserRole === 'admin') {
+            // admin 不能创建 admin 或 system，隐藏角色选择
             document.getElementById('roleSelector').style.display = 'none';
         }
 
@@ -153,7 +152,7 @@
             const password = document.getElementById('password').value;
             const secondFactor = document.getElementById('secondFactor').value.trim() || undefined;
             let role = document.getElementById('role').value;
-            if (currentUserRole === 'admin') role = 'user';
+            if (currentUserRole === 'admin') role = 'user'; // admin 强制创建普通用户
 
             const resultDiv = document.getElementById('registerResult');
             resultDiv.innerHTML = '创建中...';
