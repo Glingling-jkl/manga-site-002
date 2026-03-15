@@ -5,7 +5,6 @@ export async function onRequestPost(context) {
     try {
         const { username, password, secondFactor } = await request.json();
 
-        // 获取客户端真实 IP（Cloudflare 提供）
         const clientIP = request.headers.get('CF-Connecting-IP') || 
                          request.headers.get('X-Forwarded-For') || 
                          '0.0.0.0';
@@ -25,7 +24,6 @@ export async function onRequestPost(context) {
 
         // 检查是否已设置第二因子
         if (!user.second_factor_hash) {
-            // 未设置第二因子，返回特殊状态，前端跳转到设置页面
             return Response.json({
                 success: false,
                 needSetSecondFactor: true,
@@ -33,7 +31,6 @@ export async function onRequestPost(context) {
             }, { status: 401 });
         }
 
-        // IP 匹配检查
         const ipMatch = (user.last_ip === clientIP);
 
         if (!ipMatch && !secondFactor) {
@@ -51,7 +48,6 @@ export async function onRequestPost(context) {
             }
         }
 
-        // 登录成功，更新 last_ip
         await env.DB.prepare(
             'UPDATE users SET last_ip = ? WHERE id = ?'
         ).bind(clientIP, user.id).run();
