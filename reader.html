@@ -176,11 +176,11 @@
 
     <script>
         const urlParams = new URLSearchParams(window.location.search);
-        const comicId = urlParams.get('id') || 'default';
+        const comicId = urlParams.get('id') || 'default';  // 获取漫画ID
         const zipUrl = urlParams.get('zip');
         const isOnline = !!zipUrl;
 
-        console.log('在线模式:', isOnline, 'ZIP URL:', zipUrl);
+        console.log('在线模式:', isOnline, 'ZIP URL:', zipUrl, 'ID:', comicId);
 
         const controls = document.getElementById('controls');
         const resetBtn = document.getElementById('reset-btn');
@@ -199,46 +199,32 @@
             resetBtn.style.display = 'none';
         }
 
-        // ---------- 分片下载函数（带进度）----------
+        // ---------- 分片下载函数（实时进度）----------
         const CHUNK_COUNT = 4;
 
         async function fetchWithChunks(url) {
-            // 先尝试 HEAD 请求获取文件大小和 Range 支持
             const headRes = await fetch(url, { method: 'HEAD', mode: 'cors' });
             if (!headRes.ok) throw new Error(`HTTP ${headRes.status}`);
 
             const contentLength = headRes.headers.get('content-length');
             const acceptRanges = headRes.headers.get('accept-ranges');
             
-            // 如果不支持分片或没有大小信息，回退到普通下载
             if (!contentLength || acceptRanges !== 'bytes') {
-                console.log('Server does not support range, falling back to single fetch');
-                // 隐藏进度条（因为无法显示进度）
+                // 不支持分片，回退到普通下载，隐藏进度条
                 progressBar.style.display = 'none';
                 progressPercent.style.display = 'none';
                 progressMessage.innerText = '下载中（无进度）...';
-                
                 const res = await fetch(url, { mode: 'cors' });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 return await res.blob();
             }
 
-            // 支持分片，显示进度条
-            progressBar.style.display = 'block';
-            progressPercent.style.display = 'block';
-            
             const total = parseInt(contentLength, 10);
             const chunkSize = Math.ceil(total / CHUNK_COUNT);
-            let loaded = 0;
+            let loaded = 0; // 共享已下载字节数
 
-            const updateProgress = (chunkLoaded) => {
-                loaded += chunkLoaded;
-                const percent = Math.min(100, Math.round((loaded / total) * 100));
-                progressFill.style.width = percent + '%';
-                progressPercent.innerText = percent + '%';
-            };
-
-            const promises = [];
+            // 创建分片 Promise 数组
+            const chunkPromises = [];
             for (let i = 0; i < CHUNK_COUNT; i++) {
                 const start = i * chunkSize;
                 const end = (i === CHUNK_COUNT - 1) ? total - 1 : Math.min(start + chunkSize - 1, total - 1);
@@ -250,22 +236,35 @@
                         headers: { 'Range': `bytes=${start}-${end}` }
                     });
                     if (!res.ok) throw new Error(`Chunk ${i} failed: ${res.status}`);
-                    const buffer = await res.arrayBuffer();
-                    updateProgress(buffer.byteLength);
-                    return buffer;
+
+                    const reader = res.body.getReader();
+                    const chunks = [];
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        chunks.push(value);
+                        // 实时更新进度
+                        loaded += value.length;
+                        const percent = Math.min(100, Math.round((loaded / total) * 100));
+                        progressFill.style.width = percent + '%';
+                        progressPercent.innerText = percent + '%';
+                    }
+                    // 合并该分片的 Uint8Array
+                    const totalLength = chunks.reduce((acc, val) => acc + val.length, 0);
+                    const merged = new Uint8Array(totalLength);
+                    let offset = 0;
+                    for (const chunk of chunks) {
+                        merged.set(new Uint8Array(chunk), offset);
+                        offset += chunk.length;
+                    }
+                    return merged;
                 })();
-                promises.push(promise);
+                chunkPromises.push(promise);
             }
 
-            const buffers = await Promise.all(promises);
-            const totalLength = buffers.reduce((acc, buf) => acc + buf.byteLength, 0);
-            const merged = new Uint8Array(totalLength);
-            let offset = 0;
-            for (const buf of buffers) {
-                merged.set(new Uint8Array(buf), offset);
-                offset += buf.byteLength;
-            }
-            return new Blob([merged], { type: 'application/zip' });
+            const chunksData = await Promise.all(chunkPromises);
+            // 合并所有分片为一个 Blob
+            return new Blob(chunksData, { type: 'application/zip' });
         }
 
         // ---------- 在线加载 ----------
@@ -275,7 +274,9 @@
                 progressContainer.style.display = 'block';
                 progressFill.style.width = '0%';
                 progressPercent.innerText = '0%';
-                progressBar.style.display = 'block'; // 默认显示
+                progressBar.style.display = 'block';
+                progressPercent.style.display = 'block';
+                progressMessage.innerText = '下载中...';
 
                 try {
                     const blob = await fetchWithChunks(zipUrl);
