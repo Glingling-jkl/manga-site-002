@@ -1,52 +1,68 @@
-export async function onRequest(context) {
+// functions/api/login.js
+export async function onRequestPost(context) {
     const { request, env } = context;
 
-    if (request.method !== 'POST') {
-        return new Response('Method Not Allowed', { status: 405 });
-    }
-
     try {
-        const { username, password } = await request.json();
+        const { username, password, secondFactor } = await request.json();
 
-        // 测试数据库连接
-        try {
-            const test = await env.DB.prepare("SELECT 1").first();
-            console.log("DB connection test:", test);
-        } catch (dbConnErr) {
-            return new Response(JSON.stringify({ 
-                error: "DB connection failed", 
-                details: dbConnErr.message 
-            }), { status: 500, headers: { 'Content-Type': 'application/json' } });
-        }
+        // 获取用户真实IP（Cloudflare 提供）
+        const clientIP = request.headers.get('CF-Connecting-IP') || 
+                         request.headers.get('X-Forwarded-For') || 
+                         'unknown';
 
         // 查询用户
-        const stmt = env.DB.prepare(
-            'SELECT id, username, password_hash FROM users WHERE username = ?'
-        );
-        const user = await stmt.bind(username).first();
+        const user = await env.DB.prepare(
+            'SELECT id, username, password_hash, second_factor_hash, last_ip, role FROM users WHERE username = ?'
+        ).bind(username).first();
 
         if (!user) {
-            return new Response(JSON.stringify({ error: '用户名或密码错误' }), { 
-                status: 401, headers: { 'Content-Type': 'application/json' } 
-            });
+            return Response.json({ success: false, error: '用户名或密码错误' }, { status: 401 });
         }
 
-        // 计算哈希
-        const inputHash = await sha256(password);
-        if (inputHash !== user.password_hash) {
-            return new Response(JSON.stringify({ error: '用户名或密码错误' }), { 
-                status: 401, headers: { 'Content-Type': 'application/json' } 
-            });
+        // 验证密码
+        const passwordHash = await sha256(password);
+        if (passwordHash !== user.password_hash) {
+            return Response.json({ success: false, error: '用户名或密码错误' }, { status: 401 });
         }
 
-        return new Response(JSON.stringify({ success: true, username: user.username }), { 
-            status: 200, headers: { 'Content-Type': 'application/json' } 
+        // 检查IP是否匹配
+        const ipMatch = (user.last_ip === clientIP);
+
+        // 如果不匹配且需要第二因子，但未提供，则要求提供
+        if (!ipMatch && !secondFactor) {
+            return Response.json({ 
+                success: false, 
+                needSecondFactor: true,
+                error: 'IP地址异常，请输入第二层验证码'
+            }, { status: 401 });
+        }
+
+        // 如果IP不匹配，验证第二因子
+        if (!ipMatch && secondFactor) {
+            if (!user.second_factor_hash) {
+                return Response.json({ success: false, error: '用户未设置第二层验证码' }, { status: 401 });
+            }
+            const secondFactorHash = await sha256(secondFactor);
+            if (secondFactorHash !== user.second_factor_hash) {
+                return Response.json({ success: false, error: '第二层验证码错误' }, { status: 401 });
+            }
+        }
+
+        // 登录成功，更新 last_ip
+        await env.DB.prepare(
+            'UPDATE users SET last_ip = ? WHERE id = ?'
+        ).bind(clientIP, user.id).run();
+
+        // 设置登录状态（使用 localStorage 在前端记录）
+        return Response.json({
+            success: true,
+            username: user.username,
+            role: user.role
         });
 
     } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), { 
-            status: 500, headers: { 'Content-Type': 'application/json' } 
-        });
+        console.error('Login error:', err);
+        return Response.json({ success: false, error: '服务器错误' }, { status: 500 });
     }
 }
 
