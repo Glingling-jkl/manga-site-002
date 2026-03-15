@@ -10,7 +10,7 @@
     <div class="login-box">
         <h2>🔐 登录漫画站</h2>
         
-        <!-- 登录表单（初始可见） -->
+        <!-- 登录表单 -->
         <div id="loginForm">
             <input type="text" id="username" placeholder="用户名">
             <input type="password" id="password" placeholder="密码">
@@ -53,7 +53,6 @@
                 const data = await res.json();
 
                 if (res.ok && data.success) {
-                    // 登录成功
                     localStorage.setItem('loggedIn', 'true');
                     localStorage.setItem('currentUser', data.username);
                     localStorage.setItem('userRole', data.role);
