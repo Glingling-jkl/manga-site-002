@@ -57,8 +57,12 @@
                     localStorage.setItem('currentUser', data.username);
                     localStorage.setItem('userRole', data.role);
                     window.location.href = 'index.html';
+                } else if (data.needSetSecondFactor) {
+                    // 未设置第二因子，跳转到设置页面
+                    localStorage.setItem('currentUser', data.username);
+                    window.location.href = 'set-second-factor.html';
                 } else if (data.needSecondFactor) {
-                    // 需要第二层验证
+                    // 需要输入第二因子
                     pendingUsername = username;
                     pendingPassword = password;
                     document.getElementById('loginForm').style.display = 'none';
