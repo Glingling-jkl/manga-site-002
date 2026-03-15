@@ -35,20 +35,37 @@ async function handleDelete(request, env, id) {
         return Response.json({ success: false, error: '无权限' }, { status: 403 });
     }
 
+    // 获取当前用户角色和用户名
+    const authRole = request.headers.get('X-Auth-Role') || '';
+    const authUser = request.headers.get('X-Auth-Username') || '';
+
+    if (!authRole) {
+        return Response.json({ success: false, error: '未提供身份信息' }, { status: 403 });
+    }
+
     try {
+        // 获取漫画信息，包括所有者角色
         const comic = await env.DB.prepare(
-            'SELECT * FROM comics WHERE id = ?'
+            'SELECT cover_url, zip_url, owner_role FROM comics WHERE id = ?'
         ).bind(id).first();
         if (!comic) {
             return Response.json({ success: false, error: '漫画不存在' }, { status: 404 });
         }
 
-        const { cover_url, zip_url } = comic;
-        // 从镜像链接提取 GitHub 文件路径
-        const coverPath = extractPathFromMirror(cover_url);
-        const zipPath = extractPathFromMirror(zip_url);
+        // 权限判断
+        if (authRole === 'system') {
+            // system 可删所有
+        } else if (authRole === 'admin' && comic.owner_role !== 'system') {
+            // admin 可删非 system 的漫画
+        } else {
+            return Response.json({ success: false, error: '无权删除此漫画' }, { status: 403 });
+        }
+
+        // 从链接中提取 GitHub 文件路径（兼容原始 raw 和镜像）
+        const coverPath = extractPathFromMirror(comic.cover_url);
+        const zipPath = extractPathFromMirror(comic.zip_url);
         if (!coverPath || !zipPath) {
-            throw new Error('无法解析文件路径，请检查链接格式');
+            throw new Error('无法解析文件路径');
         }
 
         const headers = {
@@ -58,7 +75,7 @@ async function handleDelete(request, env, id) {
             'Content-Type': 'application/json',
             'User-Agent': 'Manga-Site-Admin/1.0'
         };
-        const branch = 'main'; // 根据你的仓库默认分支调整
+        const branch = 'main';
 
         async function getFileSha(path) {
             const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${path}?ref=${branch}`;
@@ -103,25 +120,12 @@ async function handleDelete(request, env, id) {
     }
 }
 
-/**
- * 从镜像链接提取 GitHub 文件路径
- * 支持格式：
- * - https://ghproxy.com/https://raw.githubusercontent.com/owner/repo/branch/path
- * - https://raw.githubusercontent.com/owner/repo/branch/path (原始格式)
- */
 function extractPathFromMirror(url) {
-    // 先尝试去除镜像前缀
-    let rawPart = url.replace(/^https?:\/\/[^\/]+(\.com)?\//, '');
-    // 如果包含 ghproxy.com，实际格式是 ghproxy.com/raw.githubusercontent.com/...
+    // 支持原始 raw 和 ghproxy 格式
+    let rawPart = url;
     if (url.includes('ghproxy.com')) {
-        // 去掉 ghproxy.com/ 部分，保留 raw.githubusercontent.com/...
         rawPart = url.split('ghproxy.com/')[1];
     }
-    // 现在应该形如 raw.githubusercontent.com/owner/repo/branch/path
-    // 提取 /owner/repo/branch/ 之后的部分
     const match = rawPart.match(/raw\.githubusercontent\.com\/[^/]+\/[^/]+\/[^/]+\/(.+)/);
-    if (match) return match[1];
-    // 如果没有匹配到，可能是原始格式直接匹配
-    const fallbackMatch = url.match(/raw\.githubusercontent\.com\/[^/]+\/[^/]+\/[^/]+\/(.+)/);
-    return fallbackMatch ? fallbackMatch[1] : null;
+    return match ? match[1] : null;
 }
