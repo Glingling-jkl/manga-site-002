@@ -27,8 +27,11 @@
     </div>
 
     <script>
+        // 检查是否已登录（但没有第二因子）
         if (!localStorage.getItem('loggedIn')) {
-            window.location.replace('login.html?needlogin=1');
+            // 如果没有 loggedIn，可能用户刚登录但还没设置？实际上登录成功后已设置，所以此处理论上不会触发
+            // 但以防万一，跳转到登录页
+            window.location.replace('login.html');
         }
         const currentUser = localStorage.getItem('currentUser') || '';
 
@@ -52,9 +55,13 @@
                 });
                 const data = await res.json();
                 if (res.ok && data.success) {
-                    resultDiv.innerHTML = '<p style="color:green;">✅ 设置成功！即将返回主页...</p>';
+                    resultDiv.innerHTML = '<p style="color:green;">✅ 设置成功！请重新登录。</p>';
+                    // 清除登录状态，让用户重新登录（因为现在有了第二因子）
+                    localStorage.removeItem('loggedIn');
+                    localStorage.removeItem('currentUser');
+                    localStorage.removeItem('userRole');
                     setTimeout(() => {
-                        window.location.href = 'index.html';
+                        window.location.href = 'login.html';
                     }, 2000);
                 } else {
                     resultDiv.innerHTML = `<p style="color:red;">❌ 设置失败: ${data.error}</p>`;
