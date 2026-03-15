@@ -5,12 +5,10 @@ export async function onRequestPost(context) {
     try {
         const { username, password, secondFactor } = await request.json();
 
-        // 获取用户真实IP（Cloudflare 提供）
         const clientIP = request.headers.get('CF-Connecting-IP') || 
                          request.headers.get('X-Forwarded-For') || 
-                         'unknown';
+                         '0.0.0.0';
 
-        // 查询用户
         const user = await env.DB.prepare(
             'SELECT id, username, password_hash, second_factor_hash, last_ip, role FROM users WHERE username = ?'
         ).bind(username).first();
@@ -19,16 +17,24 @@ export async function onRequestPost(context) {
             return Response.json({ success: false, error: '用户名或密码错误' }, { status: 401 });
         }
 
-        // 验证密码
         const passwordHash = await sha256(password);
         if (passwordHash !== user.password_hash) {
             return Response.json({ success: false, error: '用户名或密码错误' }, { status: 401 });
         }
 
-        // 检查IP是否匹配
+        // 检查是否已设置第二因子
+        if (!user.second_factor_hash) {
+            // 未设置第二因子，返回特殊状态，前端跳转到设置页面
+            return Response.json({
+                success: false,
+                needSetSecondFactor: true,
+                username: user.username
+            }, { status: 401 });
+        }
+
+        // IP 匹配检查
         const ipMatch = (user.last_ip === clientIP);
 
-        // 如果不匹配且需要第二因子，但未提供，则要求提供
         if (!ipMatch && !secondFactor) {
             return Response.json({ 
                 success: false, 
@@ -37,11 +43,7 @@ export async function onRequestPost(context) {
             }, { status: 401 });
         }
 
-        // 如果IP不匹配，验证第二因子
         if (!ipMatch && secondFactor) {
-            if (!user.second_factor_hash) {
-                return Response.json({ success: false, error: '用户未设置第二层验证码' }, { status: 401 });
-            }
             const secondFactorHash = await sha256(secondFactor);
             if (secondFactorHash !== user.second_factor_hash) {
                 return Response.json({ success: false, error: '第二层验证码错误' }, { status: 401 });
@@ -53,7 +55,6 @@ export async function onRequestPost(context) {
             'UPDATE users SET last_ip = ? WHERE id = ?'
         ).bind(clientIP, user.id).run();
 
-        // 设置登录状态（使用 localStorage 在前端记录）
         return Response.json({
             success: true,
             username: user.username,
