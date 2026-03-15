@@ -222,16 +222,18 @@
             resetBtn.style.display = 'none';
         }
 
-        // ---------- 分片下载函数（实时进度）----------
-        const CHUNK_COUNT = 12;
+        // ---------- 分片下载函数（通过代理）----------
+        const CHUNK_COUNT = 12; // 并发线程数
 
         async function fetchWithChunks(url) {
-            const headRes = await fetch(url, { method: 'HEAD', mode: 'cors' });
-            if (!headRes.ok) throw new Error(`HTTP ${headRes.status}`);
+            // 先通过 HEAD 请求获取文件信息（通过代理）
+            const proxyHeadUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
+            const headRes = await fetch(proxyHeadUrl, { method: 'HEAD', mode: 'cors' });
+            if (!headRes.ok) throw new Error(`代理 HEAD 请求失败: ${headRes.status}`);
 
             const contentLength = headRes.headers.get('content-length');
             const acceptRanges = headRes.headers.get('accept-ranges');
-            
+
             // 情况1：支持分片且有大小信息 -> 多线程下载
             if (acceptRanges === 'bytes' && contentLength) {
                 threadInfo.innerText = `多线程 (${CHUNK_COUNT} 线程)`;
@@ -246,12 +248,14 @@
                     const end = (i === CHUNK_COUNT - 1) ? total - 1 : Math.min(start + chunkSize - 1, total - 1);
                     if (start > end) continue;
 
+                    // 每个分片请求代理，带上 Range 头
+                    const proxyChunkUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
                     const promise = (async () => {
-                        const res = await fetch(url, {
+                        const res = await fetch(proxyChunkUrl, {
                             mode: 'cors',
                             headers: { 'Range': `bytes=${start}-${end}` }
                         });
-                        if (!res.ok) throw new Error(`Chunk ${i} failed: ${res.status}`);
+                        if (!res.ok) throw new Error(`分片 ${i} 失败: ${res.status}`);
 
                         const reader = res.body.getReader();
                         const chunks = [];
@@ -279,7 +283,7 @@
                 const chunksData = await Promise.all(chunkPromises);
                 return new Blob(chunksData, { type: 'application/zip' });
             }
-            
+
             // 情况2：不支持分片，但有大小信息 -> 单线程下载，显示正常进度条
             if (contentLength) {
                 threadInfo.innerText = '单线程下载';
@@ -287,7 +291,7 @@
                 const total = parseInt(contentLength, 10);
                 let loaded = 0;
 
-                const res = await fetch(url, { mode: 'cors' });
+                const res = await fetch(proxyHeadUrl, { mode: 'cors' });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
                 const reader = res.body.getReader();
@@ -318,7 +322,7 @@
             progressPercent.innerText = '--%';
             progressMessage.innerText = '下载中...';
 
-            const res = await fetch(url, { mode: 'cors' });
+            const res = await fetch(proxyHeadUrl, { mode: 'cors' });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const blob = await res.blob();
             progressFill.classList.remove('indeterminate');
@@ -340,7 +344,6 @@
                 threadInfo.innerText = '';
 
                 try {
-                    // 直接使用 zipUrl（已经是镜像链接）
                     const blob = await fetchWithChunks(zipUrl);
                     progressContainer.style.display = 'none';
                     const file = new File([blob], 'comic.zip', { type: 'application/zip' });
