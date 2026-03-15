@@ -2,7 +2,6 @@
 export async function onRequestPost(context) {
     const { request, env } = context;
 
-    // 验证上传令牌
     const uploadToken = request.headers.get('X-Upload-Token');
     if (uploadToken !== env.ADMIN_UPLOAD_TOKEN) {
         return Response.json({ success: false, error: '无上传权限' }, { status: 403 });
@@ -17,6 +16,7 @@ export async function onRequestPost(context) {
         const chapters = parseInt(formData.get('chapters') || '1');
         const pages = parseInt(formData.get('pages') || '0');
         const description = formData.get('description') || '';
+        const ownerRole = formData.get('owner_role') || 'user';
 
         if (!title || !author) {
             return Response.json({ success: false, error: '标题和作者不能为空' }, { status: 400 });
@@ -48,9 +48,8 @@ export async function onRequestPost(context) {
             'User-Agent': 'Manga-Site-Uploader/1.0'
         };
 
-        const branch = 'main'; // 根据你的默认分支调整
+        const branch = 'main';
 
-        // 上传封面到 GitHub
         const coverRes = await fetch(`https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${coverFileName}`, {
             method: 'PUT',
             headers,
@@ -65,7 +64,6 @@ export async function onRequestPost(context) {
             throw new Error(`封面上传失败 (${coverRes.status}): ${errorText}`);
         }
 
-        // 上传 ZIP 到 GitHub
         const zipRes = await fetch(`https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${zipFileName}`, {
             method: 'PUT',
             headers,
@@ -80,18 +78,16 @@ export async function onRequestPost(context) {
             throw new Error(`ZIP上传失败 (${zipRes.status}): ${errorText}`);
         }
 
-        // 生成原始 raw 基础路径
         const rawBase = `https://raw.githubusercontent.com/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/${branch}`;
-        // 使用 ghproxy.com 镜像加速
-        const coverUrl = `https://ghproxy.com/${rawBase}/${coverFileName}`;
-        const zipUrl = `https://ghproxy.com/${rawBase}/${zipFileName}`;
+        const coverUrl = `${rawBase}/${coverFileName}`;
+        const zipUrl = `${rawBase}/${zipFileName}`;
 
-        // 存入数据库
+        // 存入数据库，包含 owner_role
         const result = await env.DB.prepare(
             `INSERT INTO comics 
-            (title, author, uploader, tags, chapters, pages, cover_url, zip_url, description) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        ).bind(title, author, uploader, tags, chapters, pages, coverUrl, zipUrl, description)
+            (title, author, uploader, tags, chapters, pages, cover_url, zip_url, description, owner_role) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ).bind(title, author, uploader, tags, chapters, pages, coverUrl, zipUrl, description, ownerRole)
          .run();
 
         return Response.json({
