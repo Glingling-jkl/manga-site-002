@@ -57,15 +57,19 @@
             window.location.replace('index.html'); // 普通用户跳转
         }
 
-        const UPLOAD_TOKEN = 'manga-upload-secret-2025';
+        const UPLOAD_TOKEN = 'manga-upload-secret-2025'; // 与后端环境变量一致
 
         async function loadComics() {
-            const res = await fetch('/api/comics');
-            const data = await res.json();
-            if (data.success) {
-                renderComics(data.data);
-            } else {
-                document.getElementById('comic-list').innerHTML = '<p>加载失败</p>';
+            try {
+                const res = await fetch('/api/comics');
+                const data = await res.json();
+                if (data.success) {
+                    renderComics(data.data);
+                } else {
+                    document.getElementById('comic-list').innerHTML = '<p>加载失败</p>';
+                }
+            } catch (err) {
+                document.getElementById('comic-list').innerHTML = `<p>网络错误: ${err.message}</p>`;
             }
         }
 
@@ -107,8 +111,7 @@
                     method: 'DELETE',
                     headers: {
                         'X-Upload-Token': UPLOAD_TOKEN,
-                        'X-Auth-Username': currentUser,
-                        'X-Auth-Role': currentUserRole
+                        'X-Auth-Role': currentUserRole  // 只发送角色，避免中文用户名导致编码错误
                     }
                 });
                 const data = await res.json();
