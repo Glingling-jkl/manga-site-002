@@ -70,7 +70,7 @@
 
         <div class="tabs" id="tabs">
             <div class="tab active" data-tab="register">新注册</div>
-            <div class="tab" data-tab="manage" id="manageTab" style="display:none;">管理</div>
+            <div class="tab" data-tab="manage" id="manageTab">管理</div>
         </div>
 
         <div id="registerTab" class="tab-content active">
@@ -82,8 +82,8 @@
                     <label>角色：</label>
                     <select id="role">
                         <option value="user">普通用户 (user)</option>
-                        <option value="admin" id="adminOption" style="display:none;">管理员 (admin)</option>
-                        <option value="system" id="systemOption" style="display:none;">系统所有者 (system)</option>
+                        <option value="admin" id="adminOption">管理员 (admin)</option>
+                        <option value="system" id="systemOption">系统所有者 (system)</option>
                     </select>
                 </div>
                 <button type="submit">创建用户</button>
@@ -103,7 +103,9 @@
                         <th>操作</th>
                     </tr>
                 </thead>
-                <tbody id="userListBody"></tbody>
+                <tbody id="userListBody">
+                    <tr><td colspan="5">加载中...</td></tr>
+                </tbody>
             </table>
             <div id="manageResult" style="margin-top: 20px;"></div>
         </div>
@@ -120,15 +122,13 @@
             window.location.replace('index.html');
         }
 
-        // 根据角色显示管理选项卡
-        if (currentUserRole === 'system' || currentUserRole === 'admin') {
-            document.getElementById('manageTab').style.display = 'block';
-            // 默认激活管理选项卡
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelector('[data-tab="manage"]').classList.add('active');
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            document.getElementById('manageTab').classList.add('active');
-            loadUsers();
+        // 根据角色控制选项可见性
+        if (currentUserRole === 'system') {
+            document.getElementById('adminOption').style.display = 'block';
+            document.getElementById('systemOption').style.display = 'block';
+        } else if (currentUserRole === 'admin') {
+            // admin 不能创建 admin 或 system，隐藏角色选择
+            document.getElementById('roleSelector').style.display = 'none';
         }
 
         // 选项卡切换
@@ -143,22 +143,20 @@
             });
         });
 
-        // 新注册表单
-        if (currentUserRole === 'system') {
-            document.getElementById('adminOption').style.display = 'block';
-            document.getElementById('systemOption').style.display = 'block';
-        } else if (currentUserRole === 'admin') {
-            // admin 不能创建 admin 或 system，隐藏角色选择
-            document.getElementById('roleSelector').style.display = 'none';
+        // 默认加载管理列表（如果是管理员）
+        if (document.getElementById('manageTab').style.display !== 'none') {
+            // 手动触发管理选项卡激活
+            document.querySelector('.tab[data-tab="manage"]').click();
         }
 
+        // 创建用户表单提交
         document.getElementById('createUserForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
             const secondFactor = document.getElementById('secondFactor').value.trim() || undefined;
             let role = document.getElementById('role').value;
-            if (currentUserRole === 'admin') role = 'user'; // admin 强制创建普通用户
+            if (currentUserRole === 'admin') role = 'user';
 
             const resultDiv = document.getElementById('registerResult');
             resultDiv.innerHTML = '创建中...';
@@ -175,7 +173,6 @@
                 if (res.ok && data.success) {
                     resultDiv.innerHTML = '<p style="color:green;">✅ 用户创建成功</p>';
                     document.getElementById('createUserForm').reset();
-                    // 如果当前在管理选项卡，刷新列表
                     if (document.getElementById('manageTab').classList.contains('active')) {
                         loadUsers();
                     }
@@ -187,6 +184,7 @@
             }
         });
 
+        // 加载用户列表
         async function loadUsers() {
             const tbody = document.getElementById('userListBody');
             tbody.innerHTML = '<tr><td colspan="5">加载中...</td></tr>';
@@ -195,7 +193,8 @@
                     headers: { 'X-Auth-Role': currentUserRole }
                 });
                 if (!res.ok) {
-                    tbody.innerHTML = `<tr><td colspan="5">HTTP错误: ${res.status}</td></tr>`;
+                    const text = await res.text();
+                    tbody.innerHTML = `<tr><td colspan="5">HTTP错误 ${res.status}: ${text}</td></tr>`;
                     return;
                 }
                 const data = await res.json();
