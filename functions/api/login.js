@@ -5,6 +5,7 @@ export async function onRequestPost(context) {
     try {
         const { username, password, secondFactor } = await request.json();
 
+        // 获取客户端真实 IP（Cloudflare 提供）
         const clientIP = request.headers.get('CF-Connecting-IP') || 
                          request.headers.get('X-Forwarded-For') || 
                          '0.0.0.0';
