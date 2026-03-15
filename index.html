@@ -73,7 +73,6 @@
             opacity: 0;
             transition: opacity 0.3s ease;
         }
-        /* 主页导入按钮等样式 */
         .import-button {
             background: linear-gradient(145deg, #0066ff, #0050cc);
             color: white;
@@ -132,7 +131,6 @@
             width: 100%;
             height: 200px;
             object-fit: cover;
-            background: #ddd; /* 加载占位背景 */
         }
         .comic-card h3 {
             font-size: 16px;
@@ -223,111 +221,43 @@
             });
         })();
 
-        // ---------- 全局变量 ----------
-        let comicsData = []; // 存储所有漫画数据，用于前端过滤
-
-        // ---------- 分片下载函数（通用）----------
-        const CHUNK_COUNT = 4; // 并发分片数
-
-        async function fetchWithChunks(url) {
-            // 先尝试 HEAD 请求获取文件大小和 Range 支持
-            const headRes = await fetch(url, { method: 'HEAD', mode: 'cors' });
-            if (!headRes.ok) throw new Error(`HTTP ${headRes.status}`);
-
-            const contentLength = headRes.headers.get('content-length');
-            const acceptRanges = headRes.headers.get('accept-ranges');
-            if (!contentLength || acceptRanges !== 'bytes') {
-                // 不支持分片，回退普通下载
-                const res = await fetch(url, { mode: 'cors' });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                return await res.blob();
-            }
-
-            const total = parseInt(contentLength, 10);
-            const chunkSize = Math.ceil(total / CHUNK_COUNT);
-            let loaded = 0;
-
-            // 进度回调（可选）
-            const onProgress = (chunkLoaded) => {
-                loaded += chunkLoaded;
-                // 不需要显示进度条，可留空
-            };
-
-            const promises = [];
-            for (let i = 0; i < CHUNK_COUNT; i++) {
-                const start = i * chunkSize;
-                const end = (i === CHUNK_COUNT - 1) ? total - 1 : Math.min(start + chunkSize - 1, total - 1);
-                if (start > end) continue;
-
-                const promise = (async () => {
-                    const res = await fetch(url, {
-                        mode: 'cors',
-                        headers: { 'Range': `bytes=${start}-${end}` }
-                    });
-                    if (!res.ok) throw new Error(`Chunk ${i} failed: ${res.status}`);
-                    const buffer = await res.arrayBuffer();
-                    onProgress(buffer.byteLength);
-                    return buffer;
-                })();
-                promises.push(promise);
-            }
-
-            const buffers = await Promise.all(promises);
-            const totalLength = buffers.reduce((acc, buf) => acc + buf.byteLength, 0);
-            const merged = new Uint8Array(totalLength);
-            let offset = 0;
-            for (const buf of buffers) {
-                merged.set(new Uint8Array(buf), offset);
-                offset += buf.byteLength;
-            }
-            return new Blob([merged]);
-        }
-
-        // ---------- 加载封面图片到指定 img 元素 ----------
-        async function loadCoverImage(imgElement, url) {
-            try {
-                const blob = await fetchWithChunks(url);
-                const objectUrl = URL.createObjectURL(blob);
-                imgElement.src = objectUrl;
-                // 可选：释放旧 URL 以避免内存泄漏（但会在替换时自动回收？）
-                // 注意：这里不立即 revoke，因为图片还在使用。可以在图片加载完成后 revoke？但复杂，先保留。
-            } catch (err) {
-                console.error('封面加载失败', url, err);
-                imgElement.src = ''; // 显示空白或保留占位背景
-            }
-        }
-
         // ---------- 页面初始化 ----------
         function initPage() {
             const isLoggedIn = localStorage.getItem('loggedIn') === 'true';
             const currentUser = localStorage.getItem('currentUser') || '';
+            const userRole = localStorage.getItem('userRole') || '';
             const userArea = document.getElementById('user-area');
+
             if (isLoggedIn) {
-                userArea.innerHTML = `
-                    <p>欢迎，${currentUser}！</p>
-                    <button onclick="logout()" style="width:auto; padding:8px 20px;">退出登录</button>
-                `;
+                let userHtml = `<p>欢迎，${currentUser} (${userRole})</p>`;
+                // 管理员或 system 显示上传按钮
+                if (userRole === 'system' || userRole === 'admin') {
+                    userHtml += `<button onclick="location.href='admin-upload.html'" style="width:auto; padding:8px 20px; margin-top:10px;">📤 上传漫画</button>`;
+                }
+                userHtml += `<button onclick="logout()" style="width:auto; padding:8px 20px; margin-left:10px;">退出登录</button>`;
+                userArea.innerHTML = userHtml;
                 document.getElementById('comic-list-area').style.display = 'block';
                 loadComics();
             } else {
-                userArea.innerHTML = `
-                    <p>您还未登录，<a href="login.html" style="color:#0070f3;">点击登录/注册</a> 可查看在线漫画。</p>
-                `;
+                userArea.innerHTML = `<p>您还未登录，<a href="login.html" style="color:#0070f3;">点击登录</a> 可查看在线漫画。</p>`;
             }
         }
 
         window.logout = function() {
             localStorage.removeItem('loggedIn');
             localStorage.removeItem('currentUser');
+            localStorage.removeItem('userRole');
             window.location.reload();
         };
+
+        let comicsData = [];
 
         async function loadComics() {
             try {
                 const resp = await fetch('/api/comics');
                 const data = await resp.json();
                 if (data.success) {
-                    comicsData = data.data; // 保存全部数据
+                    comicsData = data.data;
                     renderComics(comicsData);
                 }
             } catch (err) {
@@ -346,7 +276,7 @@
             for (let c of comics) {
                 html += `
                     <div class="comic-card" onclick="location.href='detail.html?id=${c.id}'">
-                        <img data-src="${c.cover_url}" alt="${c.title}" class="cover-loading">
+                        <img src="${c.cover_url}" alt="${c.title}" loading="lazy">
                         <h3>${c.title}</h3>
                         <p>${c.author} · ${c.chapters}话</p>
                         <div class="tags">${c.tags.map(t => `<span>${t}</span>`).join('')}</div>
@@ -354,15 +284,6 @@
                 `;
             }
             listDiv.innerHTML = html;
-
-            // 开始加载每张封面
-            const images = listDiv.querySelectorAll('.cover-loading');
-            images.forEach(img => {
-                const url = img.getAttribute('data-src');
-                if (url) {
-                    loadCoverImage(img, url);
-                }
-            });
         }
 
         window.filterComics = function() {
