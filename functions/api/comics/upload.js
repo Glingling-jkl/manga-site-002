@@ -50,7 +50,7 @@ export async function onRequestPost(context) {
 
         const branch = 'main'; // 根据你的默认分支调整
 
-        // 上传封面
+        // 上传封面到 GitHub
         const coverRes = await fetch(`https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${coverFileName}`, {
             method: 'PUT',
             headers,
@@ -65,7 +65,7 @@ export async function onRequestPost(context) {
             throw new Error(`封面上传失败 (${coverRes.status}): ${errorText}`);
         }
 
-        // 上传 ZIP
+        // 上传 ZIP 到 GitHub
         const zipRes = await fetch(`https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${zipFileName}`, {
             method: 'PUT',
             headers,
@@ -80,10 +80,11 @@ export async function onRequestPost(context) {
             throw new Error(`ZIP上传失败 (${zipRes.status}): ${errorText}`);
         }
 
-        // 生成原始 raw 链接（无加速）
+        // 生成原始 raw 基础路径
         const rawBase = `https://raw.githubusercontent.com/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/${branch}`;
-        const coverUrl = `${rawBase}/${coverFileName}`;
-        const zipUrl = `${rawBase}/${zipFileName}`;
+        // 使用 ghproxy.com 镜像加速
+        const coverUrl = `https://ghproxy.com/${rawBase}/${coverFileName}`;
+        const zipUrl = `https://ghproxy.com/${rawBase}/${zipFileName}`;
 
         // 存入数据库
         const result = await env.DB.prepare(
