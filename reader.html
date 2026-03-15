@@ -148,6 +148,23 @@
             width: 0%;
             transition: width 0.2s;
         }
+        /* 不确定进度条的条纹动画 */
+        .progress-fill.indeterminate {
+            width: 100%;
+            background: repeating-linear-gradient(
+                45deg,
+                #0070f3 0px,
+                #0070f3 10px,
+                #3399ff 10px,
+                #3399ff 20px
+            );
+            background-size: 200% 100%;
+            animation: move 1s linear infinite;
+        }
+        @keyframes move {
+            0% { background-position: 0 0; }
+            100% { background-position: 200% 0; }
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
@@ -176,7 +193,7 @@
 
     <script>
         const urlParams = new URLSearchParams(window.location.search);
-        const comicId = urlParams.get('id') || 'default';  // 获取漫画ID
+        const comicId = urlParams.get('id') || 'default';
         const zipUrl = urlParams.get('zip');
         const isOnline = !!zipUrl;
 
@@ -194,7 +211,6 @@
         const progressBar = document.getElementById('progress-bar');
         let hideTimeout;
 
-        // 在线模式：隐藏重置按钮
         if (isOnline) {
             resetBtn.style.display = 'none';
         }
@@ -209,21 +225,27 @@
             const contentLength = headRes.headers.get('content-length');
             const acceptRanges = headRes.headers.get('accept-ranges');
             
+            // 如果不支持分片或没有大小信息，使用不确定进度条
             if (!contentLength || acceptRanges !== 'bytes') {
-                // 不支持分片，回退到普通下载，隐藏进度条
-                progressBar.style.display = 'none';
-                progressPercent.style.display = 'none';
-                progressMessage.innerText = '下载中（无进度）...';
+                console.log('Server does not support range, using indeterminate progress');
+                progressFill.classList.add('indeterminate');
+                progressPercent.innerText = '--%';
+                progressMessage.innerText = '下载中...';
+                
                 const res = await fetch(url, { mode: 'cors' });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                return await res.blob();
+                const blob = await res.blob();
+                // 下载完成后移除不确定样式
+                progressFill.classList.remove('indeterminate');
+                return blob;
             }
 
+            // 支持分片，显示确定进度
+            progressFill.classList.remove('indeterminate');
             const total = parseInt(contentLength, 10);
             const chunkSize = Math.ceil(total / CHUNK_COUNT);
-            let loaded = 0; // 共享已下载字节数
+            let loaded = 0;
 
-            // 创建分片 Promise 数组
             const chunkPromises = [];
             for (let i = 0; i < CHUNK_COUNT; i++) {
                 const start = i * chunkSize;
@@ -243,13 +265,11 @@
                         const { done, value } = await reader.read();
                         if (done) break;
                         chunks.push(value);
-                        // 实时更新进度
                         loaded += value.length;
                         const percent = Math.min(100, Math.round((loaded / total) * 100));
                         progressFill.style.width = percent + '%';
                         progressPercent.innerText = percent + '%';
                     }
-                    // 合并该分片的 Uint8Array
                     const totalLength = chunks.reduce((acc, val) => acc + val.length, 0);
                     const merged = new Uint8Array(totalLength);
                     let offset = 0;
@@ -263,7 +283,6 @@
             }
 
             const chunksData = await Promise.all(chunkPromises);
-            // 合并所有分片为一个 Blob
             return new Blob(chunksData, { type: 'application/zip' });
         }
 
@@ -274,6 +293,7 @@
                 progressContainer.style.display = 'block';
                 progressFill.style.width = '0%';
                 progressPercent.innerText = '0%';
+                progressFill.classList.remove('indeterminate'); // 初始确定
                 progressBar.style.display = 'block';
                 progressPercent.style.display = 'block';
                 progressMessage.innerText = '下载中...';
