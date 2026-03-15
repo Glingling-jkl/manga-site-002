@@ -24,6 +24,7 @@ async function handleGet(env, id) {
         comic.tags = JSON.parse(comic.tags || '[]');
         return Response.json({ success: true, data: comic });
     } catch (err) {
+        console.error('GET error:', err);
         return Response.json({ success: false, error: err.message }, { status: 500 });
     }
 }
@@ -35,10 +36,8 @@ async function handleDelete(request, env, id) {
         return Response.json({ success: false, error: '无权限' }, { status: 403 });
     }
 
-    // 获取当前用户角色和用户名
+    // 获取当前用户角色（不再需要用户名）
     const authRole = request.headers.get('X-Auth-Role') || '';
-    const authUser = request.headers.get('X-Auth-Username') || '';
-
     if (!authRole) {
         return Response.json({ success: false, error: '未提供身份信息' }, { status: 403 });
     }
@@ -75,7 +74,7 @@ async function handleDelete(request, env, id) {
             'Content-Type': 'application/json',
             'User-Agent': 'Manga-Site-Admin/1.0'
         };
-        const branch = 'main';
+        const branch = 'main'; // 根据你的仓库默认分支调整
 
         async function getFileSha(path) {
             const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${path}?ref=${branch}`;
@@ -120,8 +119,13 @@ async function handleDelete(request, env, id) {
     }
 }
 
+/**
+ * 从镜像链接提取 GitHub 文件路径
+ * 支持格式：
+ * - https://ghproxy.com/https://raw.githubusercontent.com/owner/repo/branch/path
+ * - https://raw.githubusercontent.com/owner/repo/branch/path
+ */
 function extractPathFromMirror(url) {
-    // 支持原始 raw 和 ghproxy 格式
     let rawPart = url;
     if (url.includes('ghproxy.com')) {
         rawPart = url.split('ghproxy.com/')[1];
