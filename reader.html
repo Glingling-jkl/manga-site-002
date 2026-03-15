@@ -148,9 +148,9 @@
             width: 0%;
             transition: width 0.2s;
         }
-        /* 不确定进度条的条纹动画 */
+        /* 不确定进度条的条纹动画（速度变慢） */
         .progress-fill.indeterminate {
-            width: 100% !important; /* 覆盖固定宽度 */
+            width: 100% !important;
             background: repeating-linear-gradient(
                 45deg,
                 #0070f3 0px,
@@ -159,7 +159,7 @@
                 #3399ff 20px
             );
             background-size: 200% 100%;
-            animation: move 1s linear infinite;
+            animation: move 2s linear infinite; /* 从1s改为2s */
         }
         @keyframes move {
             0% { background-position: 0 0; }
@@ -232,71 +232,99 @@
             const contentLength = headRes.headers.get('content-length');
             const acceptRanges = headRes.headers.get('accept-ranges');
             
-            // 如果不支持分片或没有大小信息，使用不确定进度条
-            if (!contentLength || acceptRanges !== 'bytes') {
-                console.log('Server does not support range, using indeterminate progress');
+            // 情况1：支持分片且有大小信息 -> 多线程下载
+            if (acceptRanges === 'bytes' && contentLength) {
+                threadInfo.innerText = `多线程 (${CHUNK_COUNT} 线程)`;
+                progressFill.classList.remove('indeterminate');
+                const total = parseInt(contentLength, 10);
+                const chunkSize = Math.ceil(total / CHUNK_COUNT);
+                let loaded = 0;
+
+                const chunkPromises = [];
+                for (let i = 0; i < CHUNK_COUNT; i++) {
+                    const start = i * chunkSize;
+                    const end = (i === CHUNK_COUNT - 1) ? total - 1 : Math.min(start + chunkSize - 1, total - 1);
+                    if (start > end) continue;
+
+                    const promise = (async () => {
+                        const res = await fetch(url, {
+                            mode: 'cors',
+                            headers: { 'Range': `bytes=${start}-${end}` }
+                        });
+                        if (!res.ok) throw new Error(`Chunk ${i} failed: ${res.status}`);
+
+                        const reader = res.body.getReader();
+                        const chunks = [];
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
+                            chunks.push(value);
+                            loaded += value.length;
+                            const percent = Math.min(100, Math.round((loaded / total) * 100));
+                            progressFill.style.width = percent + '%';
+                            progressPercent.innerText = percent + '%';
+                        }
+                        const totalLength = chunks.reduce((acc, val) => acc + val.length, 0);
+                        const merged = new Uint8Array(totalLength);
+                        let offset = 0;
+                        for (const chunk of chunks) {
+                            merged.set(new Uint8Array(chunk), offset);
+                            offset += chunk.length;
+                        }
+                        return merged;
+                    })();
+                    chunkPromises.push(promise);
+                }
+
+                const chunksData = await Promise.all(chunkPromises);
+                return new Blob(chunksData, { type: 'application/zip' });
+            }
+            
+            // 情况2：不支持分片，但有大小信息 -> 单线程下载，显示正常进度条
+            if (contentLength) {
                 threadInfo.innerText = '单线程下载';
-                // 设置为不确定样式
-                progressFill.classList.add('indeterminate');
-                // 确保宽度占满（条纹样式需要）
-                progressFill.style.width = '100%';
-                progressPercent.innerText = '--%';
-                progressMessage.innerText = '下载中...';
-                
+                progressFill.classList.remove('indeterminate');
+                const total = parseInt(contentLength, 10);
+                let loaded = 0;
+
                 const res = await fetch(url, { mode: 'cors' });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const blob = await res.blob();
-                // 下载完成后移除不确定样式
-                progressFill.classList.remove('indeterminate');
-                progressFill.style.width = '0%'; // 重置
-                return blob;
+
+                const reader = res.body.getReader();
+                const chunks = [];
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    chunks.push(value);
+                    loaded += value.length;
+                    const percent = Math.min(100, Math.round((loaded / total) * 100));
+                    progressFill.style.width = percent + '%';
+                    progressPercent.innerText = percent + '%';
+                }
+                const totalLength = chunks.reduce((acc, val) => acc + val.length, 0);
+                const merged = new Uint8Array(totalLength);
+                let offset = 0;
+                for (const chunk of chunks) {
+                    merged.set(new Uint8Array(chunk), offset);
+                    offset += chunk.length;
+                }
+                return new Blob([merged], { type: 'application/zip' });
             }
 
-            // 支持分片，显示确定进度
-            threadInfo.innerText = `多线程 (${CHUNK_COUNT} 线程)`;
+            // 情况3：没有大小信息（既不支持分片也无content-length） -> 单线程下载，条纹动画
+            threadInfo.innerText = '单线程下载（无进度）';
+            progressFill.classList.add('indeterminate');
+            progressFill.style.width = '100%';
+            progressPercent.innerText = '--%';
+            progressMessage.innerText = '下载中...';
+
+            const res = await fetch(url, { mode: 'cors' });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const blob = await res.blob();
+            // 下载完成后移除不确定样式
             progressFill.classList.remove('indeterminate');
-            const total = parseInt(contentLength, 10);
-            const chunkSize = Math.ceil(total / CHUNK_COUNT);
-            let loaded = 0;
-
-            const chunkPromises = [];
-            for (let i = 0; i < CHUNK_COUNT; i++) {
-                const start = i * chunkSize;
-                const end = (i === CHUNK_COUNT - 1) ? total - 1 : Math.min(start + chunkSize - 1, total - 1);
-                if (start > end) continue;
-
-                const promise = (async () => {
-                    const res = await fetch(url, {
-                        mode: 'cors',
-                        headers: { 'Range': `bytes=${start}-${end}` }
-                    });
-                    if (!res.ok) throw new Error(`Chunk ${i} failed: ${res.status}`);
-
-                    const reader = res.body.getReader();
-                    const chunks = [];
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
-                        chunks.push(value);
-                        loaded += value.length;
-                        const percent = Math.min(100, Math.round((loaded / total) * 100));
-                        progressFill.style.width = percent + '%';
-                        progressPercent.innerText = percent + '%';
-                    }
-                    const totalLength = chunks.reduce((acc, val) => acc + val.length, 0);
-                    const merged = new Uint8Array(totalLength);
-                    let offset = 0;
-                    for (const chunk of chunks) {
-                        merged.set(new Uint8Array(chunk), offset);
-                        offset += chunk.length;
-                    }
-                    return merged;
-                })();
-                chunkPromises.push(promise);
-            }
-
-            const chunksData = await Promise.all(chunkPromises);
-            return new Blob(chunksData, { type: 'application/zip' });
+            progressFill.style.width = '0%';
+            return blob;
         }
 
         // ---------- 在线加载 ----------
