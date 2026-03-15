@@ -6,6 +6,31 @@
     <title>用户管理</title>
     <link rel="stylesheet" href="style.css">
     <style>
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #ddd;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background: #f0f0f0;
+            border-radius: 5px 5px 0 0;
+            border: 1px solid #ddd;
+            border-bottom: none;
+        }
+        .tab.active {
+            background: white;
+            font-weight: bold;
+            border-bottom: 1px solid white;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
         .user-form {
             max-width: 400px;
             margin: 0 auto;
@@ -18,53 +43,108 @@
             align-items: center;
             gap: 10px;
         }
-        .note {
-            color: #666;
-            font-size: 0.9rem;
-            margin-top: 5px;
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .action-btn {
+            padding: 5px 10px;
+            margin-right: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .delete-btn {
+            background: #f44336;
+            color: white;
+        }
+        .promote-btn {
+            background: #4caf50;
+            color: white;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>👥 创建新用户</h2>
-        <form id="createUserForm" class="user-form">
-            <input type="text" id="username" placeholder="用户名 (至少3位)" required>
-            <input type="password" id="password" placeholder="密码 (至少6位)" required>
-            <input type="password" id="secondFactor" placeholder="第二层验证码 (8位，可选)" maxlength="8">
-            <div class="role-selector">
-                <label>角色：</label>
-                <select id="role">
-                    <option value="user">普通用户 (user)</option>
-                    <!-- admin 和 system 选项需要根据当前用户权限动态显示 -->
-                    <option value="admin" id="adminOption" style="display:none;">管理员 (admin)</option>
-                    <option value="system" id="systemOption" style="display:none;">系统所有者 (system)</option>
-                </select>
-            </div>
-            <button type="submit">创建用户</button>
-        </form>
-        <div id="result" style="margin-top: 20px;"></div>
+        <h2>👥 用户管理</h2>
+
+        <div class="tabs" id="tabs">
+            <div class="tab active" data-tab="register">新注册</div>
+            <div class="tab" data-tab="manage" id="manageTab" style="display:none;">管理</div>
+        </div>
+
+        <div id="registerTab" class="tab-content active">
+            <form id="createUserForm" class="user-form">
+                <input type="text" id="username" placeholder="用户名 (至少3位)" required>
+                <input type="password" id="password" placeholder="密码 (至少6位)" required>
+                <input type="password" id="secondFactor" placeholder="第二层验证码 (8位，可选)" maxlength="8">
+                <div class="role-selector" id="roleSelector">
+                    <label>角色：</label>
+                    <select id="role">
+                        <option value="user">普通用户 (user)</option>
+                        <option value="admin" id="adminOption" style="display:none;">管理员 (admin)</option>
+                        <option value="system" id="systemOption" style="display:none;">系统所有者 (system)</option>
+                    </select>
+                </div>
+                <button type="submit">创建用户</button>
+            </form>
+            <div id="registerResult" style="margin-top: 20px;"></div>
+        </div>
+
+        <div id="manageTab" class="tab-content">
+            <h3>用户列表</h3>
+            <table id="userTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>用户名</th>
+                        <th>角色</th>
+                        <th>注册时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="userListBody"></tbody>
+            </table>
+            <div id="manageResult" style="margin-top: 20px;"></div>
+        </div>
     </div>
 
     <script>
-        // 权限检查
         if (!localStorage.getItem('loggedIn')) {
             window.location.replace('login.html?needlogin=1');
         }
         const currentUserRole = localStorage.getItem('userRole') || '';
-        const currentUser = localStorage.getItem('currentUser') || '';
         if (currentUserRole !== 'system' && currentUserRole !== 'admin') {
             window.location.replace('index.html');
         }
 
-        // 根据当前角色显示可选的用户角色
+        if (currentUserRole === 'system') {
+            document.getElementById('manageTab').style.display = 'block';
+        }
+
+        // 选项卡切换
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                const tabId = tab.getAttribute('data-tab');
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                document.getElementById(tabId + 'Tab').classList.add('active');
+                if (tabId === 'manage') loadUsers();
+            });
+        });
+
+        // 新注册表单
         if (currentUserRole === 'system') {
             document.getElementById('adminOption').style.display = 'block';
             document.getElementById('systemOption').style.display = 'block';
-        } else if (currentUserRole === 'admin') {
-            // admin 只能创建 user，所以隐藏角色选择，强制为 user
-            document.getElementById('role').style.display = 'none';
-            document.querySelector('.role-selector label').style.display = 'none';
+        } else {
+            document.getElementById('roleSelector').style.display = 'none';
         }
 
         document.getElementById('createUserForm').addEventListener('submit', async (e) => {
@@ -73,20 +153,15 @@
             const password = document.getElementById('password').value;
             const secondFactor = document.getElementById('secondFactor').value.trim() || undefined;
             let role = document.getElementById('role').value;
-            // 如果是 admin 且角色选择被隐藏，强制为 user
-            if (currentUserRole === 'admin') {
-                role = 'user';
-            }
+            if (currentUserRole === 'admin') role = 'user';
 
-            const resultDiv = document.getElementById('result');
+            const resultDiv = document.getElementById('registerResult');
             resultDiv.innerHTML = '创建中...';
-
             try {
                 const res = await fetch('/api/create-user', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-Auth-Username': currentUser,
                         'X-Auth-Role': currentUserRole
                     },
                     body: JSON.stringify({ username, password, secondFactor, role })
@@ -102,6 +177,94 @@
                 resultDiv.innerHTML = `<p style="color:red;">网络错误: ${err.message}</p>`;
             }
         });
+
+        async function loadUsers() {
+            const tbody = document.getElementById('userListBody');
+            tbody.innerHTML = '<tr><td colspan="5">加载中...</td></tr>';
+            try {
+                const res = await fetch('/api/get-users', {
+                    headers: { 'X-Auth-Role': currentUserRole }
+                });
+                const data = await res.json();
+                if (data.success) renderUsers(data.data);
+                else tbody.innerHTML = `<tr><td colspan="5">加载失败: ${data.error}</td></tr>`;
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="5">网络错误: ${err.message}</td></tr>`;
+            }
+        }
+
+        function renderUsers(users) {
+            const tbody = document.getElementById('userListBody');
+            if (users.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5">暂无用户</td></tr>';
+                return;
+            }
+            let html = '';
+            for (let u of users) {
+                let deleteBtn = '', promoteBtn = '';
+                const canDelete = (currentUserRole === 'system' && u.role !== 'system') ||
+                                 (currentUserRole === 'admin' && u.role === 'user');
+                const canPromote = (currentUserRole === 'system' && u.role === 'user');
+
+                if (canDelete) deleteBtn = `<button class="action-btn delete-btn" onclick="deleteUser(${u.id})">删除</button>`;
+                if (canPromote) promoteBtn = `<button class="action-btn promote-btn" onclick="promoteUser(${u.id})">提权为管理员</button>`;
+
+                html += `<tr>
+                    <td>${u.id}</td>
+                    <td>${u.username}</td>
+                    <td>${u.role}</td>
+                    <td>${new Date(u.created_at).toLocaleString()}</td>
+                    <td>${deleteBtn} ${promoteBtn}</td>
+                </tr>`;
+            }
+            tbody.innerHTML = html;
+        }
+
+        window.deleteUser = async function(userId) {
+            if (!confirm('确定要删除该用户吗？此操作不可撤销！')) return;
+            const resultDiv = document.getElementById('manageResult');
+            resultDiv.innerHTML = '删除中...';
+            try {
+                const res = await fetch(`/api/delete-user?id=${userId}`, {
+                    method: 'DELETE',
+                    headers: { 'X-Auth-Role': currentUserRole }
+                });
+                const data = await res.json();
+                if (data.success) {
+                    resultDiv.innerHTML = '<p style="color:green;">✅ 用户已删除</p>';
+                    loadUsers();
+                } else {
+                    resultDiv.innerHTML = `<p style="color:red;">❌ 删除失败: ${data.error}</p>`;
+                }
+            } catch (err) {
+                resultDiv.innerHTML = `<p style="color:red;">网络错误: ${err.message}</p>`;
+            }
+        };
+
+        window.promoteUser = async function(userId) {
+            if (!confirm('确定要将该用户提升为管理员吗？')) return;
+            const resultDiv = document.getElementById('manageResult');
+            resultDiv.innerHTML = '处理中...';
+            try {
+                const res = await fetch('/api/update-user-role', {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Auth-Role': currentUserRole
+                    },
+                    body: JSON.stringify({ userId, newRole: 'admin' })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    resultDiv.innerHTML = '<p style="color:green;">✅ 已提升为管理员</p>';
+                    loadUsers();
+                } else {
+                    resultDiv.innerHTML = `<p style="color:red;">❌ 提权失败: ${data.error}</p>`;
+                }
+            } catch (err) {
+                resultDiv.innerHTML = `<p style="color:red;">网络错误: ${err.message}</p>`;
+            }
+        };
     </script>
 </body>
 </html>
