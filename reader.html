@@ -150,7 +150,7 @@
         }
         /* 不确定进度条的条纹动画 */
         .progress-fill.indeterminate {
-            width: 100%;
+            width: 100% !important; /* 覆盖固定宽度 */
             background: repeating-linear-gradient(
                 45deg,
                 #0070f3 0px,
@@ -164,6 +164,11 @@
         @keyframes move {
             0% { background-position: 0 0; }
             100% { background-position: 200% 0; }
+        }
+        .thread-info {
+            margin-top: 5px;
+            font-size: 0.9rem;
+            color: #ccc;
         }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -187,6 +192,7 @@
             <div id="progress-fill" class="progress-fill"></div>
         </div>
         <p id="progress-percent">0%</p>
+        <div id="thread-info" class="thread-info"></div>
     </div>
 
     <div id="comic-viewer"></div>
@@ -209,6 +215,7 @@
         const progressPercent = document.getElementById('progress-percent');
         const progressMessage = document.getElementById('progress-message');
         const progressBar = document.getElementById('progress-bar');
+        const threadInfo = document.getElementById('thread-info');
         let hideTimeout;
 
         if (isOnline) {
@@ -216,7 +223,7 @@
         }
 
         // ---------- 分片下载函数（实时进度）----------
-        const CHUNK_COUNT = 4;
+        const CHUNK_COUNT = 12;
 
         async function fetchWithChunks(url) {
             const headRes = await fetch(url, { method: 'HEAD', mode: 'cors' });
@@ -228,7 +235,11 @@
             // 如果不支持分片或没有大小信息，使用不确定进度条
             if (!contentLength || acceptRanges !== 'bytes') {
                 console.log('Server does not support range, using indeterminate progress');
+                threadInfo.innerText = '单线程下载';
+                // 设置为不确定样式
                 progressFill.classList.add('indeterminate');
+                // 确保宽度占满（条纹样式需要）
+                progressFill.style.width = '100%';
                 progressPercent.innerText = '--%';
                 progressMessage.innerText = '下载中...';
                 
@@ -237,10 +248,12 @@
                 const blob = await res.blob();
                 // 下载完成后移除不确定样式
                 progressFill.classList.remove('indeterminate');
+                progressFill.style.width = '0%'; // 重置
                 return blob;
             }
 
             // 支持分片，显示确定进度
+            threadInfo.innerText = `多线程 (${CHUNK_COUNT} 线程)`;
             progressFill.classList.remove('indeterminate');
             const total = parseInt(contentLength, 10);
             const chunkSize = Math.ceil(total / CHUNK_COUNT);
@@ -293,10 +306,11 @@
                 progressContainer.style.display = 'block';
                 progressFill.style.width = '0%';
                 progressPercent.innerText = '0%';
-                progressFill.classList.remove('indeterminate'); // 初始确定
+                progressFill.classList.remove('indeterminate');
                 progressBar.style.display = 'block';
                 progressPercent.style.display = 'block';
                 progressMessage.innerText = '下载中...';
+                threadInfo.innerText = '';
 
                 try {
                     const blob = await fetchWithChunks(zipUrl);
