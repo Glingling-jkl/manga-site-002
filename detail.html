@@ -12,7 +12,7 @@
         .comic-detail img {
             max-width: 200px;
             border-radius: 8px;
-            background: #ddd; /* 占位背景 */
+            background: #ddd;
         }
         .comic-detail button {
             font-size: 1.2rem;
@@ -27,7 +27,7 @@
     </div>
 
     <script>
-        // ---------- 分片下载函数（与主页相同）----------
+        // ---------- 分片下载函数（用于封面）----------
         const CHUNK_COUNT = 4;
 
         async function fetchWithChunks(url) {
@@ -44,27 +44,18 @@
 
             const total = parseInt(contentLength, 10);
             const chunkSize = Math.ceil(total / CHUNK_COUNT);
-            let loaded = 0;
-
             const promises = [];
             for (let i = 0; i < CHUNK_COUNT; i++) {
                 const start = i * chunkSize;
                 const end = (i === CHUNK_COUNT - 1) ? total - 1 : Math.min(start + chunkSize - 1, total - 1);
                 if (start > end) continue;
-
-                const promise = (async () => {
-                    const res = await fetch(url, {
+                promises.push(
+                    fetch(url, {
                         mode: 'cors',
                         headers: { 'Range': `bytes=${start}-${end}` }
-                    });
-                    if (!res.ok) throw new Error(`Chunk ${i} failed: ${res.status}`);
-                    const buffer = await res.arrayBuffer();
-                    loaded += buffer.byteLength;
-                    return buffer;
-                })();
-                promises.push(promise);
+                    }).then(res => res.arrayBuffer())
+                );
             }
-
             const buffers = await Promise.all(promises);
             const totalLength = buffers.reduce((acc, buf) => acc + buf.byteLength, 0);
             const merged = new Uint8Array(totalLength);
@@ -83,7 +74,7 @@
                 imgElement.src = objectUrl;
             } catch (err) {
                 console.error('封面加载失败', url, err);
-                imgElement.src = ''; // 占位
+                imgElement.src = '';
             }
         }
 
@@ -136,8 +127,10 @@
             }
         }
 
+        // 【关键修改】跳转阅读器时同时传递 id 和 zip 参数
         function startReading(zipUrl) {
-            window.location.href = `reader.html?zip=${encodeURIComponent(zipUrl)}`;
+            const currentId = new URLSearchParams(window.location.search).get('id');
+            window.location.href = `reader.html?zip=${encodeURIComponent(zipUrl)}&id=${currentId}`;
         }
     </script>
 </body>
