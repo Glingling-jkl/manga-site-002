@@ -123,6 +123,12 @@
         // 根据角色显示管理选项卡
         if (currentUserRole === 'system' || currentUserRole === 'admin') {
             document.getElementById('manageTab').style.display = 'block';
+            // 默认激活管理选项卡
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelector('[data-tab="manage"]').classList.add('active');
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById('manageTab').classList.add('active');
+            loadUsers();
         }
 
         // 选项卡切换
@@ -169,6 +175,10 @@
                 if (res.ok && data.success) {
                     resultDiv.innerHTML = '<p style="color:green;">✅ 用户创建成功</p>';
                     document.getElementById('createUserForm').reset();
+                    // 如果当前在管理选项卡，刷新列表
+                    if (document.getElementById('manageTab').classList.contains('active')) {
+                        loadUsers();
+                    }
                 } else {
                     resultDiv.innerHTML = `<p style="color:red;">❌ 创建失败: ${data.error}</p>`;
                 }
@@ -184,9 +194,16 @@
                 const res = await fetch('/api/get-users', {
                     headers: { 'X-Auth-Role': currentUserRole }
                 });
+                if (!res.ok) {
+                    tbody.innerHTML = `<tr><td colspan="5">HTTP错误: ${res.status}</td></tr>`;
+                    return;
+                }
                 const data = await res.json();
-                if (data.success) renderUsers(data.data);
-                else tbody.innerHTML = `<tr><td colspan="5">加载失败: ${data.error}</td></tr>`;
+                if (data.success) {
+                    renderUsers(data.data);
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="5">加载失败: ${data.error}</td></tr>`;
+                }
             } catch (err) {
                 tbody.innerHTML = `<tr><td colspan="5">网络错误: ${err.message}</td></tr>`;
             }
