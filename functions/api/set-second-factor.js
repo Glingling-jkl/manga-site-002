@@ -2,7 +2,7 @@
 export async function onRequestPost(context) {
     const { request, env } = context;
 
-    // 从请求头获取用户名（已登录用户）
+    // 从请求头获取用户名（用户已登录但未设置第二因子）
     const authUsername = request.headers.get('X-Auth-Username');
     if (!authUsername) {
         return Response.json({ success: false, error: '未提供身份信息' }, { status: 403 });
@@ -16,9 +16,13 @@ export async function onRequestPost(context) {
 
         const secondFactorHash = await sha256(secondFactor);
 
-        await env.DB.prepare(
+        const result = await env.DB.prepare(
             'UPDATE users SET second_factor_hash = ? WHERE username = ?'
         ).bind(secondFactorHash, authUsername).run();
+
+        if (result.meta.changes === 0) {
+            return Response.json({ error: '用户不存在或未登录' }, { status: 404 });
+        }
 
         return Response.json({ success: true, message: '第二层验证码设置成功' });
     } catch (err) {
