@@ -33,6 +33,10 @@
         .delete-btn:hover {
             background: #d32f2f;
         }
+        .no-permission {
+            color: #999;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
@@ -43,7 +47,17 @@
     </div>
 
     <script>
-        const UPLOAD_TOKEN = 'manga-upload-secret-2025'; // 与你的 ADMIN_UPLOAD_TOKEN 一致
+        // 登录和权限检查
+        if (!localStorage.getItem('loggedIn')) {
+            window.location.replace('login.html?needlogin=1');
+        }
+        const currentUser = localStorage.getItem('currentUser') || '';
+        const currentUserRole = localStorage.getItem('userRole') || '';
+        if (currentUserRole !== 'system' && currentUserRole !== 'admin') {
+            window.location.replace('index.html'); // 普通用户跳转
+        }
+
+        const UPLOAD_TOKEN = 'manga-upload-secret-2025';
 
         async function loadComics() {
             const res = await fetch('/api/comics');
@@ -63,14 +77,21 @@
             }
             let html = '';
             for (let c of comics) {
+                let actionButton = '';
+                // 判断权限：system 可删所有；admin 可删非 system 的漫画
+                if (currentUserRole === 'system' || (currentUserRole === 'admin' && c.owner_role !== 'system')) {
+                    actionButton = `<button class="delete-btn" onclick="deleteComic(${c.id})">删除</button>`;
+                } else {
+                    actionButton = `<span class="no-permission">无权限</span>`;
+                }
                 html += `
                     <div class="comic-manage-item" data-id="${c.id}">
                         <img src="${c.cover_url}" alt="${c.title}">
                         <div class="comic-info">
                             <strong>${c.title}</strong> (${c.author})<br>
-                            上传者: ${c.uploader} | 上传时间: ${new Date(c.uploaded_at).toLocaleString()}
+                            上传者: ${c.uploader} | 所有者: ${c.owner_role}
                         </div>
-                        <button class="delete-btn" onclick="deleteComic(${c.id})">删除</button>
+                        ${actionButton}
                     </div>
                 `;
             }
@@ -78,16 +99,16 @@
         }
 
         async function deleteComic(id) {
-            if (!confirm('确定要删除这本漫画吗？此操作不可撤销！')) {
-                return;
-            }
+            if (!confirm('确定要删除这本漫画吗？此操作不可撤销！')) return;
             const resultDiv = document.getElementById('result');
             resultDiv.innerHTML = '删除中...';
             try {
                 const res = await fetch(`/api/comics/${id}`, {
                     method: 'DELETE',
                     headers: {
-                        'X-Upload-Token': UPLOAD_TOKEN
+                        'X-Upload-Token': UPLOAD_TOKEN,
+                        'X-Auth-Username': currentUser,
+                        'X-Auth-Role': currentUserRole
                     }
                 });
                 const data = await res.json();
@@ -102,12 +123,7 @@
             }
         }
 
-        // 检查登录状态
-        if (!localStorage.getItem('loggedIn')) {
-            window.location.replace('login.html?needlogin=1');
-        } else {
-            loadComics();
-        }
+        loadComics();
     </script>
 </body>
-                    </html>
+</html>
