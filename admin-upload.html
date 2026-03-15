@@ -6,7 +6,6 @@
     <title>上传漫画 - 管理员</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* 与站点风格统一的额外样式 */
         .upload-form input[type="file"] {
             padding: 8px;
             background: #f9f9f9;
@@ -43,8 +42,8 @@
             <label>作者 *</label>
             <input type="text" name="author" placeholder="例如：尾田荣一郎" required>
 
-            <label>上传者</label>
-            <input type="text" name="uploader" value="admin" readonly>
+            <label>上传者（自动填充）</label>
+            <input type="text" id="uploaderDisplay" readonly>
 
             <label>标签（用英文逗号分隔）</label>
             <input type="text" name="tags" placeholder="例如：热血,冒险,少年">
@@ -75,13 +74,21 @@
     </div>
 
     <script>
-        // 登录检查：未登录则跳转
+        // 登录检查
         if (!localStorage.getItem('loggedIn')) {
             window.location.replace('login.html?needlogin=1');
         }
+        const currentUser = localStorage.getItem('currentUser') || 'unknown';
+        const userRole = localStorage.getItem('userRole') || 'user';
+        // 权限检查：只有 system/admin 可以访问
+        if (userRole !== 'system' && userRole !== 'admin') {
+            window.location.replace('index.html');
+        }
 
-        // 上传令牌（必须与 Cloudflare 环境变量 ADMIN_UPLOAD_TOKEN 一致）
-        const UPLOAD_TOKEN = 'manga-upload-secret-2025';
+        // 显示上传者信息
+        document.getElementById('uploaderDisplay').value = `${currentUser} (${userRole})`;
+
+        const UPLOAD_TOKEN = 'manga-upload-secret-2025'; // 与后端一致
 
         const form = document.getElementById('uploadForm');
         const resultDiv = document.getElementById('result');
@@ -91,6 +98,9 @@
             resultDiv.innerHTML = '上传中...';
 
             const formData = new FormData(form);
+            // 添加上传者信息和所有者角色
+            formData.append('uploader', `${currentUser} (${userRole})`);
+            formData.append('owner_role', userRole);
 
             try {
                 const response = await fetch('/api/comics/upload', {
@@ -112,7 +122,8 @@
                             ZIP链接：<a href="${data.zipUrl}" target="_blank">查看</a>
                         </div>
                     `;
-                    form.reset();  // 清空表单以便继续上传
+                    form.reset();
+                    document.getElementById('uploaderDisplay').value = `${currentUser} (${userRole})`;
                 } else {
                     resultDiv.innerHTML = `
                         <div style="color:red; background:#ffe8e8; padding:15px; border-radius:8px;">
