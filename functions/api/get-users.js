@@ -9,11 +9,13 @@ export async function onRequestGet(context) {
 
     try {
         if (authRole === 'system') {
+            // system 看到所有非 system 用户
             const { results } = await env.DB.prepare(
                 'SELECT id, username, role, created_at FROM users WHERE role != ? ORDER BY created_at DESC'
             ).bind('system').all();
             return Response.json({ success: true, data: results });
         } else if (authRole === 'admin') {
+            // admin 看到所有普通用户
             const { results } = await env.DB.prepare(
                 'SELECT id, username, role, created_at FROM users WHERE role = ? ORDER BY created_at DESC'
             ).bind('user').all();
