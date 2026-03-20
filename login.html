@@ -142,29 +142,15 @@
                 const data = await res.json();
 
                 if (res.ok && data.success) {
-                    // 设置成功后，自动再次尝试登录
-                    msg.innerText = '设置成功，正在登录...';
-                    // 重新调用登录
-                    const loginRes = await fetch('/api/login', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            username: pendingUsername, 
-                            password: pendingPassword 
-                        })
-                    });
-                    const loginData = await loginRes.json();
-                    if (loginRes.ok && loginData.success) {
-                        localStorage.setItem('loggedIn', 'true');
-                        localStorage.setItem('currentUser', loginData.username);
-                        localStorage.setItem('userRole', loginData.role);
-                        window.location.href = 'index.html';
-                    } else {
-                        msg.innerText = '设置成功，但自动登录失败，请手动登录';
-                        setTimeout(() => {
-                            window.location.href = 'login.html';
-                        }, 2000);
-                    }
+                    // 设置成功，清除本地存储并跳转到登录页
+                    localStorage.removeItem('loggedIn');
+                    localStorage.removeItem('currentUser');
+                    localStorage.removeItem('userRole');
+                    msg.style.color = 'green';
+                    msg.innerText = '设置成功！请重新登录。';
+                    setTimeout(() => {
+                        window.location.href = 'login.html';
+                    }, 1500);
                 } else {
                     msg.innerText = data.error || '设置失败';
                 }
