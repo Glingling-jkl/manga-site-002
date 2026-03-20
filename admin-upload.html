@@ -3,144 +3,283 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>上传漫画 - 管理员</title>
+    <title>用户管理</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        .upload-form input[type="file"] {
-            padding: 8px;
-            background: #f9f9f9;
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #ddd;
         }
-        .upload-form label {
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background: #f0f0f0;
+            border-radius: 5px 5px 0 0;
+            border: 1px solid #ddd;
+            border-bottom: none;
+        }
+        .tab.active {
+            background: white;
+            font-weight: bold;
+            border-bottom: 1px solid white;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
             display: block;
-            margin: 15px 0 5px;
-            font-weight: bold;
         }
-        .upload-form button {
-            margin-top: 20px;
+        .user-form {
+            max-width: 400px;
+            margin: 0 auto;
         }
-        .admin-link {
-            margin-top: 30px;
-            text-align: center;
+        .user-form input, .user-form select, .user-form button {
+            margin: 10px 0;
         }
-        .admin-link a {
-            color: #0070f3;
-            text-decoration: none;
-            font-weight: bold;
+        table {
+            width: 100%;
+            border-collapse: collapse;
         }
-        .admin-link a:hover {
-            text-decoration: underline;
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .action-btn {
+            padding: 5px 10px;
+            margin-right: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .delete-btn {
+            background: #f44336;
+            color: white;
+        }
+        .promote-btn {
+            background: #4caf50;
+            color: white;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>📤 上传新漫画</h2>
-        <form id="uploadForm" class="upload-form" enctype="multipart/form-data">
-            <label>漫画名 *</label>
-            <input type="text" name="title" placeholder="例如：海贼王 第一卷" required>
+        <h2>👥 用户管理</h2>
 
-            <label>作者 *</label>
-            <input type="text" name="author" placeholder="例如：尾田荣一郎" required>
+        <div class="tabs" id="tabs">
+            <div class="tab active" data-tab="register">新注册</div>
+            <div class="tab" data-tab="manage" id="manageTab">管理</div>
+        </div>
 
-            <label>上传者（自动填充）</label>
-            <input type="text" id="uploaderDisplay" readonly>
+        <div id="registerTab" class="tab-content active">
+            <form id="createUserForm" class="user-form">
+                <input type="text" id="username" placeholder="用户名 (至少3位)" required>
+                <input type="password" id="password" placeholder="密码 (至少6位)" required>
+                <input type="password" id="secondFactor" placeholder="第二层验证码 (8位，可选)" maxlength="8">
+                <div class="role-selector" id="roleSelector">
+                    <label>角色：</label>
+                    <select id="role">
+                        <option value="user">普通用户 (user)</option>
+                        <option value="admin" id="adminOption">管理员 (admin)</option>
+                        <option value="system" id="systemOption">系统所有者 (system)</option>
+                    </select>
+                </div>
+                <button type="submit">创建用户</button>
+            </form>
+            <div id="registerResult" style="margin-top: 20px;"></div>
+        </div>
 
-            <label>标签（用英文逗号分隔）</label>
-            <input type="text" name="tags" placeholder="例如：热血,冒险,少年">
-
-            <label>章数</label>
-            <input type="number" name="chapters" value="1" min="1">
-
-            <label>页数</label>
-            <input type="number" name="pages" value="0" min="0">
-
-            <label>简介</label>
-            <textarea name="description" rows="4" placeholder="简单描述漫画内容..."></textarea>
-
-            <label>封面图片 *</label>
-            <input type="file" name="cover" accept="image/*" required>
-
-            <label>漫画 ZIP 文件 *</label>
-            <input type="file" name="zip" accept=".zip,.cbz" required>
-
-            <button type="submit">开始上传</button>
-        </form>
-
-        <div id="result" style="margin-top: 20px;"></div>
-
-        <div class="admin-link">
-            <a href="admin-manage.html">📋 管理已有漫画</a>
+        <div id="manageTab" class="tab-content">
+            <h3>用户列表</h3>
+            <table id="userTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>用户名</th>
+                        <th>角色</th>
+                        <th>注册时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="userListBody">
+                    <tr><td colspan="5">加载中...</td></tr>
+                </tbody>
+            </table>
+            <div id="manageResult" style="margin-top: 20px;"></div>
         </div>
     </div>
 
     <script>
-        // 登录检查
+        // 检查登录和权限
         if (!localStorage.getItem('loggedIn')) {
             window.location.replace('login.html?needlogin=1');
         }
-        const currentUser = localStorage.getItem('currentUser') || 'unknown';
-        const userRole = localStorage.getItem('userRole') || 'user';
-        // 权限检查：只有 system/admin 可以访问
-        if (userRole !== 'system' && userRole !== 'admin') {
+        const currentUserRole = localStorage.getItem('userRole') || '';
+        const currentUser = localStorage.getItem('currentUser') || '';
+        if (currentUserRole !== 'system' && currentUserRole !== 'admin') {
             window.location.replace('index.html');
         }
 
-        // 显示上传者信息
-        document.getElementById('uploaderDisplay').value = `${currentUser} (${userRole})`;
+        // 根据角色控制选项可见性
+        if (currentUserRole === 'system') {
+            document.getElementById('adminOption').style.display = 'block';
+            document.getElementById('systemOption').style.display = 'block';
+        } else if (currentUserRole === 'admin') {
+            // admin 不能创建 admin 或 system，隐藏角色选择
+            document.getElementById('roleSelector').style.display = 'none';
+        }
 
-        const UPLOAD_TOKEN = 'manga-upload-secret-2025'; // 与后端一致
+        // 选项卡切换
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                const tabId = tab.getAttribute('data-tab');
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                document.getElementById(tabId + 'Tab').classList.add('active');
+                if (tabId === 'manage') loadUsers();
+            });
+        });
 
-        const form = document.getElementById('uploadForm');
-        const resultDiv = document.getElementById('result');
+        // 默认加载管理列表（如果是管理员）
+        if (currentUserRole === 'system' || currentUserRole === 'admin') {
+            // 触发管理选项卡激活
+            document.querySelector('.tab[data-tab="manage"]').click();
+        }
 
-        form.addEventListener('submit', async (e) => {
+        // 创建用户表单提交
+        document.getElementById('createUserForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            resultDiv.innerHTML = '上传中...';
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const secondFactor = document.getElementById('secondFactor').value.trim() || undefined;
+            let role = document.getElementById('role').value;
+            if (currentUserRole === 'admin') role = 'user';
 
-            const formData = new FormData(form);
-            // 添加上传者信息和所有者角色
-            formData.append('uploader', `${currentUser} (${userRole})`);
-            formData.append('owner_role', userRole);
-
+            const resultDiv = document.getElementById('registerResult');
+            resultDiv.innerHTML = '创建中...';
             try {
-                const response = await fetch('/api/comics/upload', {
+                const res = await fetch('/api/create-user', {
                     method: 'POST',
                     headers: {
-                        'X-Upload-Token': UPLOAD_TOKEN
+                        'Content-Type': 'application/json',
+                        'X-Auth-Role': currentUserRole
                     },
-                    body: formData
+                    body: JSON.stringify({ username, password, secondFactor, role })
                 });
-
-                const data = await response.json();
-
-                if (response.ok && data.success) {
-                    resultDiv.innerHTML = `
-                        <div style="color:green; background:#e8f5e8; padding:15px; border-radius:8px;">
-                            <strong>✅ 上传成功！</strong><br>
-                            漫画ID：${data.id}<br>
-                            封面链接：<a href="${data.coverUrl}" target="_blank">查看</a><br>
-                            ZIP链接：<a href="${data.zipUrl}" target="_blank">查看</a>
-                        </div>
-                    `;
-                    form.reset();
-                    document.getElementById('uploaderDisplay').value = `${currentUser} (${userRole})`;
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    resultDiv.innerHTML = '<p style="color:green;">✅ 用户创建成功</p>';
+                    document.getElementById('createUserForm').reset();
+                    if (document.getElementById('manageTab').classList.contains('active')) {
+                        loadUsers();
+                    }
                 } else {
-                    resultDiv.innerHTML = `
-                        <div style="color:red; background:#ffe8e8; padding:15px; border-radius:8px;">
-                            <strong>❌ 上传失败</strong><br>
-                            ${data.error || '未知错误'}
-                        </div>
-                    `;
+                    resultDiv.innerHTML = `<p style="color:red;">❌ 创建失败: ${data.error}</p>`;
                 }
             } catch (err) {
-                resultDiv.innerHTML = `
-                    <div style="color:red; background:#ffe8e8; padding:15px; border-radius:8px;">
-                        <strong>❌ 网络错误</strong><br>
-                        ${err.message}
-                    </div>
-                `;
+                resultDiv.innerHTML = `<p style="color:red;">网络错误: ${err.message}</p>`;
             }
         });
+
+        // 加载用户列表
+        async function loadUsers() {
+            const tbody = document.getElementById('userListBody');
+            tbody.innerHTML = '<tr><td colspan="5">加载中...</td></tr>';
+            try {
+                const res = await fetch('/api/get-users', {
+                    headers: { 'X-Auth-Role': currentUserRole }
+                });
+                if (!res.ok) {
+                    const text = await res.text();
+                    tbody.innerHTML = `<tr><td colspan="5">HTTP错误 ${res.status}: ${text}</td></tr>`;
+                    return;
+                }
+                const data = await res.json();
+                if (data.success) {
+                    renderUsers(data.data);
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="5">加载失败: ${data.error}</td></tr>`;
+                }
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="5">网络错误: ${err.message}</td></tr>`;
+            }
+        }
+
+        function renderUsers(users) {
+            const tbody = document.getElementById('userListBody');
+            if (users.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5">暂无用户</td></tr>';
+                return;
+            }
+            let html = '';
+            for (let u of users) {
+                let deleteBtn = '', promoteBtn = '';
+                const canDelete = (currentUserRole === 'system' && u.role !== 'system') ||
+                                 (currentUserRole === 'admin' && u.role === 'user');
+                const canPromote = (currentUserRole === 'system' && u.role === 'user');
+
+                if (canDelete) deleteBtn = `<button class="action-btn delete-btn" onclick="deleteUser(${u.id})">删除</button>`;
+                if (canPromote) promoteBtn = `<button class="action-btn promote-btn" onclick="promoteUser(${u.id})">提权为管理员</button>`;
+
+                html += `<tr>
+                    <td>${u.id}</td>
+                    <td>${u.username}</td>
+                    <td>${u.role}</td>
+                    <td>${new Date(u.created_at).toLocaleString()}</td>
+                    <td>${deleteBtn} ${promoteBtn}</td>
+                </tr>`;
+            }
+            tbody.innerHTML = html;
+        }
+
+        window.deleteUser = async function(userId) {
+            if (!confirm('确定要删除该用户吗？此操作不可撤销！')) return;
+            const resultDiv = document.getElementById('manageResult');
+            resultDiv.innerHTML = '删除中...';
+            try {
+                const res = await fetch(`/api/delete-user?id=${userId}`, {
+                    method: 'DELETE',
+                    headers: { 'X-Auth-Role': currentUserRole }
+                });
+                const data = await res.json();
+                if (data.success) {
+                    resultDiv.innerHTML = '<p style="color:green;">✅ 用户已删除</p>';
+                    loadUsers();
+                } else {
+                    resultDiv.innerHTML = `<p style="color:red;">❌ 删除失败: ${data.error}</p>`;
+                }
+            } catch (err) {
+                resultDiv.innerHTML = `<p style="color:red;">网络错误: ${err.message}</p>`;
+            }
+        };
+
+        window.promoteUser = async function(userId) {
+            if (!confirm('确定要将该用户提升为管理员吗？')) return;
+            const resultDiv = document.getElementById('manageResult');
+            resultDiv.innerHTML = '处理中...';
+            try {
+                const res = await fetch('/api/update-user-role', {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Auth-Role': currentUserRole
+                    },
+                    body: JSON.stringify({ userId, newRole: 'admin' })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    resultDiv.innerHTML = '<p style="color:green;">✅ 已提升为管理员</p>';
+                    loadUsers();
+                } else {
+                    resultDiv.innerHTML = `<p style="color:red;">❌ 提权失败: ${data.error}</p>`;
+                }
+            } catch (err) {
+                resultDiv.innerHTML = `<p style="color:red;">网络错误: ${err.message}</p>`;
+            }
+        };
     </script>
 </body>
 </html>
