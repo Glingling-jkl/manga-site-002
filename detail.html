@@ -30,17 +30,33 @@
             padding: 10px 0;
             border-bottom: 1px solid #f0f0f0;
         }
+        .comment-user-info {
+            display: inline-block;
+            margin-bottom: 5px;
+        }
         .comment-user {
             font-weight: bold;
             color: #0070f3;
+            font-size: 0.9rem;
+        }
+        .comment-group {
+            font-size: 0.7rem;
+            color: #666;
+            margin-left: 6px;
+            background: #f0f0f0;
+            padding: 1px 6px;
+            border-radius: 12px;
+            vertical-align: middle;
         }
         .comment-time {
-            font-size: 0.8rem;
+            font-size: 0.7rem;
             color: #999;
             margin-left: 10px;
         }
         .comment-content {
             margin-top: 5px;
+            font-size: 0.9rem;
+            line-height: 1.4;
         }
         .comment-form {
             margin-top: 20px;
@@ -144,7 +160,6 @@
 
         // ---------- 登录检查 ----------
         const isLoggedIn = localStorage.getItem('loggedIn') === 'true';
-        const currentUser = localStorage.getItem('currentUser') || '';
         const currentUserId = localStorage.getItem('currentUserId') || '';
         const currentUserRole = localStorage.getItem('userRole') || '';
 
@@ -226,10 +241,17 @@
             }
             let html = '';
             for (let c of comments) {
+                let groupName = '';
+                if (c.user_role === 'system') groupName = '系统';
+                else if (c.user_role === 'admin') groupName = '管理员';
+                else groupName = '用户';
                 html += `
                     <div class="comment-item">
-                        <span class="comment-user">${escapeHtml(c.username)}</span>
-                        <span class="comment-time">${new Date(c.created_at).toLocaleString()}</span>
+                        <div class="comment-user-info">
+                            <span class="comment-user">${escapeHtml(c.username)}</span>
+                            <span class="comment-group">${groupName}</span>
+                            <span class="comment-time">${new Date(c.created_at).toLocaleString()}</span>
+                        </div>
                         <div class="comment-content">${escapeHtml(c.content)}</div>
                     </div>
                 `;
@@ -269,7 +291,7 @@
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-Auth-UserId': currentUserId,   // 使用用户ID
+                            'X-Auth-UserId': currentUserId,
                             'X-Auth-Role': currentUserRole
                         },
                         body: JSON.stringify({ comicId, content })
