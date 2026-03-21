@@ -94,8 +94,6 @@
             border-radius: 8px;
             text-align: center;
         }
-
-        /* 右键菜单样式 */
         .comment-context-menu {
             position: fixed;
             background: white;
@@ -141,7 +139,6 @@
     </div>
 
     <script>
-        // ---------- 分片下载函数（用于封面）----------
         const CHUNK_COUNT = 4;
 
         async function fetchWithChunks(url) {
@@ -192,7 +189,6 @@
             }
         }
 
-        // ---------- 登录检查 ----------
         const isLoggedIn = localStorage.getItem('loggedIn') === 'true';
         const currentUserId = localStorage.getItem('currentUserId') || '';
         const currentUserRole = localStorage.getItem('userRole') || '';
@@ -210,13 +206,16 @@
             loadComments(comicId);
         }
 
-        // 加载漫画详情
         async function loadComicDetail(id) {
             try {
-                const res = await fetch(`/api/comics/${id}`);
+                const res = await fetch(`/api/comics/${id}`, {
+                    headers: { 'X-Auth-UserId': currentUserId }
+                });
                 const data = await res.json();
                 if (data.success) {
                     renderComic(data.data);
+                } else if (res.status === 403) {
+                    document.getElementById('comic-detail').innerHTML = `<p style="color:red;">${data.error}</p>`;
                 } else {
                     document.getElementById('comic-detail').innerHTML = '<p>漫画不存在</p>';
                 }
@@ -250,18 +249,14 @@
             window.location.href = `reader.html?zip=${encodeURIComponent(zipUrl)}&id=${comicId}`;
         }
 
-        // ---------- 评论功能 ----------
         let currentMenu = null;
 
-        // 智能菜单位置计算
         function getPosition(x, y, menuWidth, menuHeight) {
             const winWidth = window.innerWidth;
             const winHeight = window.innerHeight;
-
             let offsetX = 10, offsetY = 10;
             let left = x + offsetX;
             let top = y + offsetY;
-
             if (left + menuWidth > winWidth) {
                 left = x - menuWidth - offsetX;
                 if (left < 0) left = 0;
@@ -314,39 +309,29 @@
             }
             listDiv.innerHTML = html;
 
-            // 绑定右键/长按事件
             const commentItems = document.querySelectorAll('.comment-item');
             commentItems.forEach(item => {
                 item.addEventListener('contextmenu', (e) => {
                     e.preventDefault();
                     showContextMenu(e, item);
                 });
-
                 let pressTimer;
                 let savedX, savedY;
                 const touchStartHandler = (e) => {
-                    e.preventDefault(); // 防止滚动
+                    e.preventDefault();
                     const touch = e.touches[0];
                     savedX = touch.clientX;
                     savedY = touch.clientY;
                     pressTimer = setTimeout(() => {
-                        // 使用保存的坐标
                         const fakeEvent = { clientX: savedX, clientY: savedY };
                         showContextMenu(fakeEvent, item);
                     }, 500);
                 };
-                const touchEndHandler = (e) => {
-                    clearTimeout(pressTimer);
-                };
-                const touchMoveHandler = (e) => {
-                    clearTimeout(pressTimer);
-                };
-
+                const touchEndHandler = () => clearTimeout(pressTimer);
+                const touchMoveHandler = () => clearTimeout(pressTimer);
                 item.addEventListener('touchstart', touchStartHandler);
                 item.addEventListener('touchend', touchEndHandler);
                 item.addEventListener('touchmove', touchMoveHandler);
-
-                // 存储以便后续清理（可选，但本例中无需清理）
             });
         }
 
@@ -457,7 +442,6 @@
             });
         }
 
-        // 发表评论表单
         const container = document.getElementById('comment-form-container');
         if (isLoggedIn) {
             container.innerHTML = `
