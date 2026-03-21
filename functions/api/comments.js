@@ -9,7 +9,7 @@ export async function onRequestGet(context) {
 
     try {
         const { results } = await env.DB.prepare(
-            'SELECT id, username, content, created_at FROM comments WHERE comic_id = ? ORDER BY created_at DESC'
+            'SELECT id, username, user_role, content, created_at FROM comments WHERE comic_id = ? ORDER BY created_at DESC'
         ).bind(comicId).all();
         return Response.json({ success: true, data: results });
     } catch (err) {
@@ -21,7 +21,6 @@ export async function onRequestGet(context) {
 export async function onRequestPost(context) {
     const { request, env } = context;
 
-    // 从请求头获取用户ID
     const userId = request.headers.get('X-Auth-UserId');
     if (!userId) {
         return Response.json({ success: false, error: '请先登录' }, { status: 401 });
@@ -39,15 +38,15 @@ export async function onRequestPost(context) {
             return Response.json({ success: false, error: '漫画不存在' }, { status: 404 });
         }
 
-        // 获取用户信息（用于显示用户名）
-        const user = await env.DB.prepare('SELECT username FROM users WHERE id = ?').bind(userId).first();
+        // 获取用户信息（包括角色）
+        const user = await env.DB.prepare('SELECT username, role FROM users WHERE id = ?').bind(userId).first();
         if (!user) {
             return Response.json({ success: false, error: '用户不存在' }, { status: 404 });
         }
 
         const result = await env.DB.prepare(
-            'INSERT INTO comments (comic_id, user_id, username, content) VALUES (?, ?, ?, ?)'
-        ).bind(comicId, userId, user.username, content).run();
+            'INSERT INTO comments (comic_id, user_id, username, user_role, content) VALUES (?, ?, ?, ?, ?)'
+        ).bind(comicId, userId, user.username, user.role, content).run();
 
         return Response.json({ success: true, id: result.meta.last_row_id });
     } catch (err) {
