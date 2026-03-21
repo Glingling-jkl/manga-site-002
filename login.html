@@ -60,21 +60,18 @@
                 const data = await res.json();
 
                 if (res.ok && data.success) {
-                    // 登录成功，存储用户信息（包括 userId）
                     localStorage.setItem('loggedIn', 'true');
                     localStorage.setItem('currentUser', data.username);
                     localStorage.setItem('userRole', data.role);
                     localStorage.setItem('currentUserId', data.userId);
                     window.location.href = 'index.html';
                 } else if (data.needSetSecondFactor) {
-                    // 未设置第二因子，显示设置表单
                     pendingUsername = data.username;
                     pendingPassword = password;
                     document.getElementById('loginForm').style.display = 'none';
                     document.getElementById('setSecondFactorForm').style.display = 'block';
                     msg.innerText = '';
                 } else if (data.needSecondFactor) {
-                    // 需要输入第二因子
                     pendingUsername = username;
                     pendingPassword = password;
                     document.getElementById('loginForm').style.display = 'none';
@@ -137,14 +134,13 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-Auth-Username': pendingUsername
+                        'X-Auth-UserId': localStorage.getItem('currentUserId') // 使用用户ID
                     },
                     body: JSON.stringify({ secondFactor: newSecondFactor })
                 });
                 const data = await res.json();
 
                 if (res.ok && data.success) {
-                    // 设置成功，清除本地存储并跳转到登录页
                     localStorage.removeItem('loggedIn');
                     localStorage.removeItem('currentUser');
                     localStorage.removeItem('userRole');
