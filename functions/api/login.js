@@ -27,7 +27,8 @@ export async function onRequestPost(context) {
             return Response.json({
                 success: false,
                 needSetSecondFactor: true,
-                username: user.username
+                username: user.username,
+                userId: user.id   // 返回 userId，前端存储
             }, { status: 401 });
         }
 
@@ -52,7 +53,7 @@ export async function onRequestPost(context) {
             'UPDATE users SET last_ip = ? WHERE id = ?'
         ).bind(clientIP, user.id).run();
 
-        // 登录成功，返回用户信息（包括 id）
+        // 登录成功，返回用户信息
         return Response.json({
             success: true,
             username: user.username,
