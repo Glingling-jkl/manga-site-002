@@ -21,10 +21,9 @@ export async function onRequestGet(context) {
 export async function onRequestPost(context) {
     const { request, env } = context;
 
-    // 验证用户登录（通过 localStorage 传递的 X-Auth-Username 和 X-Auth-Role）
-    const username = request.headers.get('X-Auth-Username');
+    // 从请求头获取用户ID
     const userId = request.headers.get('X-Auth-UserId');
-    if (!username || !userId) {
+    if (!userId) {
         return Response.json({ success: false, error: '请先登录' }, { status: 401 });
     }
 
@@ -34,15 +33,21 @@ export async function onRequestPost(context) {
             return Response.json({ success: false, error: '缺少参数' }, { status: 400 });
         }
 
-        // 验证漫画是否存在（可选）
+        // 验证漫画存在
         const comic = await env.DB.prepare('SELECT id FROM comics WHERE id = ?').bind(comicId).first();
         if (!comic) {
             return Response.json({ success: false, error: '漫画不存在' }, { status: 404 });
         }
 
+        // 获取用户信息（用于显示用户名）
+        const user = await env.DB.prepare('SELECT username FROM users WHERE id = ?').bind(userId).first();
+        if (!user) {
+            return Response.json({ success: false, error: '用户不存在' }, { status: 404 });
+        }
+
         const result = await env.DB.prepare(
             'INSERT INTO comments (comic_id, user_id, username, content) VALUES (?, ?, ?, ?)'
-        ).bind(comicId, userId, username, content).run();
+        ).bind(comicId, userId, user.username, content).run();
 
         return Response.json({ success: true, id: result.meta.last_row_id });
     } catch (err) {
