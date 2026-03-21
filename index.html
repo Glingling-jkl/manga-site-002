@@ -148,7 +148,9 @@
             padding: 2px 8px;
             margin-right: 4px;
         }
-        .fab-upload {
+
+        /* 菜单按钮样式 */
+        .menu-btn {
             position: fixed;
             bottom: 30px;
             right: 30px;
@@ -167,13 +169,68 @@
             z-index: 1000;
             display: none;
         }
-        .fab-upload:hover {
+        .menu-btn:hover {
             transform: scale(1.1);
             box-shadow: 0 6px 15px rgba(0,112,243,0.7);
+        }
+
+        /* 主菜单（向上弹出） */
+        .main-menu {
+            position: fixed;
+            bottom: 100px;
+            right: 30px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 10000;
+            min-width: 120px;
+            display: none;
+        }
+        .main-menu ul {
+            list-style: none;
+            margin: 0;
+            padding: 8px 0;
+        }
+        .main-menu li {
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            white-space: nowrap;
+        }
+        .main-menu li:hover {
+            background: #f0f0f0;
+        }
+
+        /* 子菜单（向左弹出） */
+        .sub-menu {
+            position: fixed;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 10001;
+            min-width: 150px;
+            display: none;
+        }
+        .sub-menu ul {
+            list-style: none;
+            margin: 0;
+            padding: 8px 0;
+        }
+        .sub-menu li {
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            white-space: nowrap;
+        }
+        .sub-menu li:hover {
+            background: #f0f0f0;
         }
     </style>
 </head>
 <body>
+    <!-- 启动画面 -->
     <div id="splash" class="splash-screen">
         <div class="splash-content">
             <div class="spinner-outer" id="spinnerOuter"></div>
@@ -182,6 +239,7 @@
         </div>
     </div>
 
+    <!-- 主页内容 -->
     <div id="main-content">
         <div class="container">
             <div class="import-button" onclick="location.href='reader.html'">
@@ -199,9 +257,28 @@
         </div>
     </div>
 
-    <div id="fab-upload" class="fab-upload" onclick="location.href='admin-upload.html'">📤</div>
+    <!-- 菜单按钮 -->
+    <div id="menuBtn" class="menu-btn">☰</div>
+
+    <!-- 主菜单（向上弹出） -->
+    <div id="mainMenu" class="main-menu">
+        <ul>
+            <li id="uploadMenuItem">📤 上传漫画</li>
+            <li id="settingsMenuItem">⚙️ 小设置</li>
+        </ul>
+    </div>
+
+    <!-- 子菜单（向左弹出） -->
+    <div id="subMenu" class="sub-menu">
+        <ul>
+            <li id="changePasswordItem">🔑 修改密码</li>
+            <li id="changeSecondFactorItem">🔐 修改二密</li>
+            <li id="toggleAdultItem">⚠️ 安全内容: <span id="adultStatus"></span></li>
+        </ul>
+    </div>
 
     <script>
+        // ---------- 启动动画 ----------
         (function() {
             if (sessionStorage.getItem('splashPlayed')) {
                 document.getElementById('splash').classList.add('hidden');
@@ -243,12 +320,15 @@
             });
         })();
 
+        // ---------- 页面初始化 ----------
         function initPage() {
             const isLoggedIn = localStorage.getItem('loggedIn') === 'true';
             const currentUser = localStorage.getItem('currentUser') || '';
             const userRole = localStorage.getItem('userRole') || '';
             const userArea = document.getElementById('user-area');
-            const fabUpload = document.getElementById('fab-upload');
+            const menuBtn = document.getElementById('menuBtn');
+            const mainMenu = document.getElementById('mainMenu');
+            const subMenu = document.getElementById('subMenu');
 
             if (isLoggedIn) {
                 let userHtml = `<p>欢迎，${currentUser} (${userRole})</p>`;
@@ -259,14 +339,164 @@
                 userArea.innerHTML = userHtml;
                 document.getElementById('comic-list-area').style.display = 'block';
                 loadComics();
-                if (userRole === 'system' || userRole === 'admin') {
-                    fabUpload.style.display = 'flex';
-                } else {
-                    fabUpload.style.display = 'none';
-                }
+                menuBtn.style.display = 'flex'; // 显示菜单按钮
+
+                // 加载用户安全内容状态
+                loadAdultStatus();
             } else {
                 userArea.innerHTML = `<p>您还未登录，<a href="login.html" style="color:#0070f3;">点击登录</a> 可查看在线漫画。</p>`;
-                fabUpload.style.display = 'none';
+                menuBtn.style.display = 'none';
+            }
+
+            // 菜单按钮点击事件
+            menuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                // 关闭子菜单
+                subMenu.style.display = 'none';
+                // 切换主菜单显示
+                if (mainMenu.style.display === 'block') {
+                    mainMenu.style.display = 'none';
+                } else {
+                    // 计算位置：固定在按钮上方
+                    const btnRect = menuBtn.getBoundingClientRect();
+                    mainMenu.style.bottom = (window.innerHeight - btnRect.top + 10) + 'px';
+                    mainMenu.style.right = (window.innerWidth - btnRect.right) + 'px';
+                    mainMenu.style.display = 'block';
+                }
+            });
+
+            // 上传漫画菜单项
+            document.getElementById('uploadMenuItem').addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (userRole === 'system' || userRole === 'admin') {
+                    window.location.href = 'admin-upload.html';
+                } else {
+                    alert('无权限上传漫画');
+                }
+                closeAllMenus();
+            });
+
+            // 小设置菜单项
+            document.getElementById('settingsMenuItem').addEventListener('click', (e) => {
+                e.stopPropagation();
+                // 关闭主菜单，显示子菜单
+                mainMenu.style.display = 'none';
+                // 计算子菜单位置（向左弹出）
+                const btnRect = menuBtn.getBoundingClientRect();
+                subMenu.style.bottom = (window.innerHeight - btnRect.top + 10) + 'px';
+                subMenu.style.right = (btnRect.left - 10) + 'px'; // 向左偏移
+                subMenu.style.display = 'block';
+            });
+
+            // 点击其他地方关闭所有菜单
+            document.addEventListener('click', closeAllMenus);
+            document.addEventListener('contextmenu', closeAllMenus);
+
+            function closeAllMenus() {
+                mainMenu.style.display = 'none';
+                subMenu.style.display = 'none';
+            }
+
+            // 修改密码
+            document.getElementById('changePasswordItem').addEventListener('click', async () => {
+                const oldPassword = prompt('请输入当前密码：');
+                if (!oldPassword) return;
+                const newPassword = prompt('请输入新密码（至少6位）：');
+                if (!newPassword || newPassword.length < 6) {
+                    alert('新密码至少6位');
+                    return;
+                }
+                const confirmPassword = prompt('请再次输入新密码：');
+                if (newPassword !== confirmPassword) {
+                    alert('两次输入的新密码不一致');
+                    return;
+                }
+                try {
+                    const res = await fetch('/api/change-password', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Auth-UserId': localStorage.getItem('currentUserId')
+                        },
+                        body: JSON.stringify({ oldPassword, newPassword })
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                        alert('密码修改成功，请重新登录');
+                        logout();
+                    } else {
+                        alert('修改失败: ' + data.error);
+                    }
+                } catch (err) {
+                    alert('网络错误: ' + err.message);
+                }
+                closeAllMenus();
+            });
+
+            // 修改二密
+            document.getElementById('changeSecondFactorItem').addEventListener('click', async () => {
+                const newSecondFactor = prompt('请输入新的8位第二层验证码：');
+                if (!newSecondFactor || newSecondFactor.length !== 8) {
+                    alert('验证码必须为8位');
+                    return;
+                }
+                try {
+                    const res = await fetch('/api/change-second-factor', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Auth-UserId': localStorage.getItem('currentUserId')
+                        },
+                        body: JSON.stringify({ newSecondFactor })
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                        alert('第二层验证码修改成功，下次登录时生效');
+                    } else {
+                        alert('修改失败: ' + data.error);
+                    }
+                } catch (err) {
+                    alert('网络错误: ' + err.message);
+                }
+                closeAllMenus();
+            });
+
+            // 切换安全内容
+            document.getElementById('toggleAdultItem').addEventListener('click', async () => {
+                try {
+                    const res = await fetch('/api/toggle-allow-adult-self', {
+                        method: 'PATCH',
+                        headers: {
+                            'X-Auth-UserId': localStorage.getItem('currentUserId')
+                        }
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                        alert(`已切换为${data.newStatus === 'yes' ? '允许' : '禁止'}高危内容`);
+                        loadAdultStatus(); // 刷新显示
+                    } else {
+                        alert('操作失败: ' + data.error);
+                    }
+                } catch (err) {
+                    alert('网络错误: ' + err.message);
+                }
+                closeAllMenus();
+            });
+        }
+
+        async function loadAdultStatus() {
+            try {
+                const res = await fetch('/api/get-user-allow-adult', {
+                    headers: { 'X-Auth-UserId': localStorage.getItem('currentUserId') }
+                });
+                const data = await res.json();
+                if (data.success) {
+                    const statusSpan = document.getElementById('adultStatus');
+                    statusSpan.innerText = data.allow_adult === 'yes' ? '允许' : '禁止';
+                    // 如果用户没有 allow_adult 字段（旧用户），则不显示该项？默认都有
+                }
+            } catch (err) {
+                console.error('加载安全内容状态失败', err);
             }
         }
 
