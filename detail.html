@@ -29,6 +29,8 @@
         .comment-item {
             padding: 10px 0;
             border-bottom: 1px solid #f0f0f0;
+            position: relative;
+            cursor: default;
         }
         .comment-user-info {
             display: inline-block;
@@ -90,6 +92,37 @@
             padding: 15px;
             border-radius: 8px;
             text-align: center;
+        }
+
+        /* 右键菜单样式 */
+        .comment-context-menu {
+            position: fixed;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 10000;
+            min-width: 120px;
+        }
+        .comment-context-menu ul {
+            list-style: none;
+            margin: 0;
+            padding: 4px 0;
+        }
+        .comment-context-menu li {
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .comment-context-menu li:hover {
+            background: #f0f0f0;
+        }
+        .comment-context-menu li.disabled {
+            color: #999;
+            cursor: not-allowed;
+        }
+        .comment-context-menu li.disabled:hover {
+            background: none;
         }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -217,6 +250,8 @@
         }
 
         // ---------- 评论功能 ----------
+        let currentMenu = null;
+
         async function loadComments(comicId) {
             const listDiv = document.getElementById('comment-list');
             listDiv.innerHTML = '加载评论中...';
@@ -246,7 +281,7 @@
                 else if (c.user_role === 'admin') groupName = '管理员';
                 else groupName = '用户';
                 html += `
-                    <div class="comment-item">
+                    <div class="comment-item" data-comment-id="${c.id}" data-user-id="${c.user_id}" data-user-role="${c.user_role}" data-created-at="${c.created_at}">
                         <div class="comment-user-info">
                             <span class="comment-user">${escapeHtml(c.username)}</span>
                             <span class="comment-group">${groupName}</span>
@@ -257,6 +292,119 @@
                 `;
             }
             listDiv.innerHTML = html;
+
+            // 绑定右键/长按事件
+            const commentItems = document.querySelectorAll('.comment-item');
+            commentItems.forEach(item => {
+                item.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    showContextMenu(e, item);
+                });
+                let pressTimer;
+                item.addEventListener('touchstart', (e) => {
+                    pressTimer = setTimeout(() => {
+                        showContextMenu(e, item);
+                    }, 500);
+                });
+                item.addEventListener('touchend', () => clearTimeout(pressTimer));
+                item.addEventListener('touchmove', () => clearTimeout(pressTimer));
+            });
+        }
+
+        function showContextMenu(event, commentElement) {
+            if (currentMenu) {
+                currentMenu.remove();
+                currentMenu = null;
+            }
+
+            const commentId = commentElement.getAttribute('data-comment-id');
+            const commentUserId = commentElement.getAttribute('data-user-id');
+            const commentUserRole = commentElement.getAttribute('data-user-role');
+            const commentCreatedAt = commentElement.getAttribute('data-created-at');
+
+            const currentUserId = localStorage.getItem('currentUserId');
+            const currentUserRole = localStorage.getItem('userRole');
+
+            const isOwner = (commentUserId === currentUserId);
+            const commentTime = new Date(commentCreatedAt).getTime();
+            const now = Date.now();
+            const isWithin5Min = (now - commentTime) <= 5 * 60 * 1000;
+
+            const canRecall = isOwner && isWithin5Min;
+            let canDelete = false;
+            if (currentUserRole === 'system') {
+                canDelete = true;
+            } else if (currentUserRole === 'admin') {
+                if (commentUserRole === 'user') {
+                    canDelete = true;
+                }
+            }
+
+            const menu = document.createElement('div');
+            menu.className = 'comment-context-menu';
+            menu.innerHTML = `
+                <ul>
+                    <li class="${!canRecall ? 'disabled' : ''}" data-action="recall">撤回</li>
+                    <li class="${!canDelete ? 'disabled' : ''}" data-action="delete">删除</li>
+                </ul>
+            `;
+            document.body.appendChild(menu);
+
+            const x = event.clientX;
+            const y = event.clientY;
+            menu.style.left = x + 'px';
+            menu.style.top = y + 'px';
+
+            menu.querySelectorAll('li').forEach(li => {
+                li.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const action = li.getAttribute('data-action');
+                    if (action === 'recall' && canRecall) {
+                        await deleteComment(commentId);
+                        menu.remove();
+                        currentMenu = null;
+                    } else if (action === 'delete' && canDelete) {
+                        await deleteComment(commentId);
+                        menu.remove();
+                        currentMenu = null;
+                    }
+                });
+            });
+
+            const hideMenu = (e) => {
+                if (!menu.contains(e.target)) {
+                    menu.remove();
+                    currentMenu = null;
+                    document.removeEventListener('click', hideMenu);
+                    document.removeEventListener('contextmenu', hideMenu);
+                }
+            };
+            setTimeout(() => {
+                document.addEventListener('click', hideMenu);
+                document.addEventListener('contextmenu', hideMenu);
+            }, 0);
+
+            currentMenu = menu;
+        }
+
+        async function deleteComment(commentId) {
+            try {
+                const res = await fetch(`/api/comments?id=${commentId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-Auth-UserId': localStorage.getItem('currentUserId'),
+                        'X-Auth-Role': localStorage.getItem('userRole')
+                    }
+                });
+                const data = await res.json();
+                if (data.success) {
+                    loadComments(comicId);
+                } else {
+                    alert('删除失败: ' + data.error);
+                }
+            } catch (err) {
+                alert('网络错误: ' + err.message);
+            }
         }
 
         function escapeHtml(str) {
