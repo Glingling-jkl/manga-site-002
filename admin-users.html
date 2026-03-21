@@ -38,12 +38,6 @@
             background: #4caf50;
             color: white;
         }
-        .error {
-            color: red;
-        }
-        .success {
-            color: green;
-        }
     </style>
 </head>
 <body>
@@ -67,194 +61,203 @@
         <div id="registerResult" style="margin-top: 20px;"></div>
 
         <h3>用户列表</h3>
-        <div id="userListContainer">
-            <table id="userTable">
-                <thead>
-                    <tr><th>ID</th><th>用户名</th><th>角色</th><th>注册时间</th><th>操作</th> </>
-                </thead>
-                <tbody id="userListBody">
-                    <tr><td colspan="5">加载中...</td></tr>
-                </tbody>
-             </table>
-        </div>
+        <table id="userTable">
+            <thead>
+                <tr><th>ID</th><th>用户名</th><th>角色</th><th>成人内容</th><th>注册时间</th><th>操作</th> </>
+            </thead>
+            <tbody id="userListBody">
+                <tr><td colspan="6">加载中...</td></tr>
+            </tbody>
+         </table>
         <div id="manageResult" style="margin-top: 20px;"></div>
     </div>
 
     <script>
-        (function() {
-            // 检查登录和权限
-            if (!localStorage.getItem('loggedIn')) {
-                window.location.replace('login.html?needlogin=1');
-                return;
-            }
-            const currentUserRole = localStorage.getItem('userRole') || '';
-            const currentUser = localStorage.getItem('currentUser') || '';
-            if (currentUserRole !== 'system' && currentUserRole !== 'admin') {
-                window.location.replace('index.html');
-                return;
-            }
+        if (!localStorage.getItem('loggedIn')) {
+            window.location.replace('login.html?needlogin=1');
+        }
+        const currentUserRole = localStorage.getItem('userRole') || '';
+        const currentUser = localStorage.getItem('currentUser') || '';
+        if (currentUserRole !== 'system' && currentUserRole !== 'admin') {
+            window.location.replace('index.html');
+        }
 
-            // 根据角色控制选项可见性
-            if (currentUserRole === 'system') {
-                document.getElementById('adminOption').style.display = 'block';
-                document.getElementById('systemOption').style.display = 'block';
-            } else if (currentUserRole === 'admin') {
-                document.getElementById('roleSelector').style.display = 'none';
-            }
+        if (currentUserRole === 'system') {
+            document.getElementById('adminOption').style.display = 'block';
+            document.getElementById('systemOption').style.display = 'block';
+        } else if (currentUserRole === 'admin') {
+            document.getElementById('roleSelector').style.display = 'none';
+        }
 
-            // 获取 DOM 元素
-            const createForm = document.getElementById('createUserForm');
-            const registerResult = document.getElementById('registerResult');
-            const userListBody = document.getElementById('userListBody');
-            const manageResult = document.getElementById('manageResult');
+        document.getElementById('createUserForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const secondFactor = document.getElementById('secondFactor').value.trim() || undefined;
+            let role = document.getElementById('role').value;
+            if (currentUserRole === 'admin') role = 'user';
 
-            // 加载用户列表
-            async function loadUsers() {
-                if (!userListBody) return;
-                userListBody.innerHTML = '<tr><td colspan="5">加载中...</td></tr>';
-                try {
-                    const res = await fetch('/api/get-users', {
-                        headers: { 'X-Auth-Role': currentUserRole }
-                    });
-                    if (!res.ok) {
-                        const text = await res.text();
-                        userListBody.innerHTML = `<tr><td colspan="5">HTTP错误 ${res.status}: ${text}</td></tr>`;
-                        return;
-                    }
-                    const data = await res.json();
-                    console.log('用户数据:', data);
-                    if (data.success) {
-                        renderUsers(data.data);
-                    } else {
-                        userListBody.innerHTML = `<tr><td colspan="5">加载失败: ${data.error}</td></tr>`;
-                    }
-                } catch (err) {
-                    console.error('加载用户错误:', err);
-                    userListBody.innerHTML = `<tr><td colspan="5">网络错误: ${err.message}</td></tr>`;
+            const resultDiv = document.getElementById('registerResult');
+            resultDiv.innerHTML = '创建中...';
+            try {
+                const res = await fetch('/api/create-user', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Auth-Role': currentUserRole
+                    },
+                    body: JSON.stringify({ username, password, secondFactor, role })
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    resultDiv.innerHTML = '<p style="color:green;">✅ 用户创建成功</p>';
+                    document.getElementById('createUserForm').reset();
+                    loadUsers();
+                } else {
+                    resultDiv.innerHTML = `<p style="color:red;">❌ 创建失败: ${data.error}</p>`;
                 }
+            } catch (err) {
+                resultDiv.innerHTML = `<p style="color:red;">网络错误: ${err.message}</p>`;
             }
+        });
 
-            function renderUsers(users) {
-                if (!userListBody) return;
-                if (users.length === 0) {
-                    userListBody.innerHTML = '<tr><td colspan="5">暂无用户</td></tr>';
+        async function loadUsers() {
+            const tbody = document.getElementById('userListBody');
+            tbody.innerHTML = ' <td colspan="6">加载中...</td>';
+            try {
+                const res = await fetch('/api/get-users', {
+                    headers: { 'X-Auth-Role': currentUserRole }
+                });
+                if (!res.ok) {
+                    const text = await res.text();
+                    tbody.innerHTML = `<tr><td colspan="6">HTTP错误 ${res.status}: ${text}</td></tr>`;
                     return;
                 }
-                let html = '';
-                for (let u of users) {
-                    let deleteBtn = '', promoteBtn = '';
-                    const canDelete = (currentUserRole === 'system' && u.role !== 'system') ||
-                                     (currentUserRole === 'admin' && u.role === 'user');
-                    const canPromote = (currentUserRole === 'system' && u.role === 'user');
-
-                    if (canDelete) deleteBtn = `<button class="action-btn delete-btn" onclick="deleteUser(${u.id})">删除</button>`;
-                    if (canPromote) promoteBtn = `<button class="action-btn promote-btn" onclick="promoteUser(${u.id})">提权为管理员</button>`;
-
-                    html += `<tr>
-                        <td>${u.id}</td>
-                        <td>${escapeHtml(u.username)}</td>
-                        <td>${u.role}</td>
-                        <td>${new Date(u.created_at).toLocaleString()}</td>
-                        <td>${deleteBtn} ${promoteBtn}</td>
-                    </tr>`;
+                const data = await res.json();
+                if (data.success) {
+                    renderUsers(data.data);
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="6">加载失败: ${data.error}</td></tr>`;
                 }
-                userListBody.innerHTML = html;
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="6">网络错误: ${err.message}</td></tr>`;
             }
+        }
 
-            function escapeHtml(str) {
-                return str.replace(/[&<>]/g, function(m) {
-                    if (m === '&') return '&amp;';
-                    if (m === '<') return '&lt;';
-                    if (m === '>') return '&gt;';
-                    return m;
-                });
+        function renderUsers(users) {
+            const tbody = document.getElementById('userListBody');
+            if (users.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6">暂无用户</td></tr>';
+                return;
             }
+            let html = '';
+            for (let u of users) {
+                let deleteBtn = '', promoteBtn = '', adultToggle = '';
+                const canDelete = (currentUserRole === 'system' && u.role !== 'system') ||
+                                 (currentUserRole === 'admin' && u.role === 'user');
+                const canPromote = (currentUserRole === 'system' && u.role === 'user');
 
-            // 创建用户
-            createForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const username = document.getElementById('username').value.trim();
-                const password = document.getElementById('password').value;
-                const secondFactor = document.getElementById('secondFactor').value.trim() || undefined;
-                let role = document.getElementById('role').value;
-                if (currentUserRole === 'admin') role = 'user';
-
-                registerResult.innerHTML = '创建中...';
-                try {
-                    const res = await fetch('/api/create-user', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-Auth-Role': currentUserRole
-                        },
-                        body: JSON.stringify({ username, password, secondFactor, role })
-                    });
-                    const data = await res.json();
-                    if (res.ok && data.success) {
-                        registerResult.innerHTML = '<p class="success">✅ 用户创建成功</p>';
-                        createForm.reset();
-                        loadUsers();
-                    } else {
-                        registerResult.innerHTML = `<p class="error">❌ 创建失败: ${data.error}</p>`;
-                    }
-                } catch (err) {
-                    registerResult.innerHTML = `<p class="error">网络错误: ${err.message}</p>`;
+                if (canDelete) deleteBtn = `<button class="action-btn delete-btn" onclick="deleteUser(${u.id})">删除</button>`;
+                if (canPromote) promoteBtn = `<button class="action-btn promote-btn" onclick="promoteUser(${u.id})">提权</button>`;
+                if (currentUserRole === 'system') {
+                    adultToggle = `<button class="action-btn" onclick="toggleAllowAdult(${u.id}, '${u.allow_adult}')">切换成人内容</button>`;
                 }
+
+                html += ` <tr>
+                    <td>${u.id}</td>
+                    <td>${escapeHtml(u.username)}</td>
+                    <td>${u.role}</td>
+                    <td>${u.allow_adult === 'yes' ? '允许' : '禁止'}</td>
+                    <td>${new Date(u.created_at).toLocaleString()}</td>
+                    <td>${deleteBtn} ${promoteBtn} ${adultToggle}</td>
+                </tr>`;
+            }
+            tbody.innerHTML = html;
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
             });
+        }
 
-            // 删除用户
-            window.deleteUser = async function(userId) {
-                if (!confirm('确定要删除该用户吗？此操作不可撤销！')) return;
-                manageResult.innerHTML = '删除中...';
-                try {
-                    const res = await fetch(`/api/delete-user?id=${userId}`, {
-                        method: 'DELETE',
-                        headers: { 'X-Auth-Role': currentUserRole }
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                        manageResult.innerHTML = '<p class="success">✅ 用户已删除</p>';
-                        loadUsers();
-                    } else {
-                        manageResult.innerHTML = `<p class="error">❌ 删除失败: ${data.error}</p>`;
-                    }
-                } catch (err) {
-                    manageResult.innerHTML = `<p class="error">网络错误: ${err.message}</p>`;
+        window.deleteUser = async function(userId) {
+            if (!confirm('确定要删除该用户吗？此操作不可撤销！')) return;
+            const resultDiv = document.getElementById('manageResult');
+            resultDiv.innerHTML = '删除中...';
+            try {
+                const res = await fetch(`/api/delete-user?id=${userId}`, {
+                    method: 'DELETE',
+                    headers: { 'X-Auth-Role': currentUserRole }
+                });
+                const data = await res.json();
+                if (data.success) {
+                    resultDiv.innerHTML = '<p style="color:green;">✅ 用户已删除</p>';
+                    loadUsers();
+                } else {
+                    resultDiv.innerHTML = `<p style="color:red;">❌ 删除失败: ${data.error}</p>`;
                 }
-            };
-
-            // 提权用户
-            window.promoteUser = async function(userId) {
-                if (!confirm('确定要将该用户提升为管理员吗？')) return;
-                manageResult.innerHTML = '处理中...';
-                try {
-                    const res = await fetch('/api/update-user-role', {
-                        method: 'PATCH',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-Auth-Role': currentUserRole
-                        },
-                        body: JSON.stringify({ userId, newRole: 'admin' })
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                        manageResult.innerHTML = '<p class="success">✅ 已提升为管理员</p>';
-                        loadUsers();
-                    } else {
-                        manageResult.innerHTML = `<p class="error">❌ 提权失败: ${data.error}</p>`;
-                    }
-                } catch (err) {
-                    manageResult.innerHTML = `<p class="error">网络错误: ${err.message}</p>`;
-                }
-            };
-
-            // 页面加载后加载用户列表
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', loadUsers);
-            } else {
-                loadUsers();
+            } catch (err) {
+                resultDiv.innerHTML = `<p style="color:red;">网络错误: ${err.message}</p>`;
             }
-        })();
+        };
+
+        window.promoteUser = async function(userId) {
+            if (!confirm('确定要将该用户提升为管理员吗？')) return;
+            const resultDiv = document.getElementById('manageResult');
+            resultDiv.innerHTML = '处理中...';
+            try {
+                const res = await fetch('/api/update-user-role', {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Auth-Role': currentUserRole
+                    },
+                    body: JSON.stringify({ userId, newRole: 'admin' })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    resultDiv.innerHTML = '<p style="color:green;">✅ 已提升为管理员</p>';
+                    loadUsers();
+                } else {
+                    resultDiv.innerHTML = `<p style="color:red;">❌ 提权失败: ${data.error}</p>`;
+                }
+            } catch (err) {
+                resultDiv.innerHTML = `<p style="color:red;">网络错误: ${err.message}</p>`;
+            }
+        };
+
+        window.toggleAllowAdult = async function(userId, currentValue) {
+            const newValue = currentValue === 'yes' ? 'no' : 'yes';
+            if (!confirm(`确定要将该用户的成人内容权限改为“${newValue === 'yes' ? '允许' : '禁止'}”吗？`)) return;
+            const resultDiv = document.getElementById('manageResult');
+            resultDiv.innerHTML = '处理中...';
+            try {
+                const res = await fetch('/api/update-user-allow-adult', {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Auth-UserId': localStorage.getItem('currentUserId'),
+                        'X-Auth-Role': currentUserRole
+                    },
+                    body: JSON.stringify({ userId, allowAdult: newValue })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    resultDiv.innerHTML = '<p style="color:green;">✅ 权限已更新</p>';
+                    loadUsers();
+                } else {
+                    resultDiv.innerHTML = `<p style="color:red;">❌ 操作失败: ${data.error}</p>`;
+                }
+            } catch (err) {
+                resultDiv.innerHTML = `<p style="color:red;">网络错误: ${err.message}</p>`;
+            }
+        };
+
+        loadUsers();
     </script>
 </body>
 </html>
