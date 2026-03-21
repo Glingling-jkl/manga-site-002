@@ -19,7 +19,7 @@
 
         <!-- 第二层验证表单（初始隐藏） -->
         <div id="secondFactorForm" style="display: none;">
-            <p id="secondFactorMessage">IP地址异常，请输入第二层验证码</p>
+            <p>IP地址异常，请输入第二层验证码</p>
             <input type="text" id="secondFactor" placeholder="8位验证码" maxlength="8">
             <button onclick="submitSecondFactor()">验证</button>
         </div>
@@ -60,10 +60,11 @@
                 const data = await res.json();
 
                 if (res.ok && data.success) {
-                    // 登录成功
+                    // 登录成功，存储用户信息（包括 userId）
                     localStorage.setItem('loggedIn', 'true');
                     localStorage.setItem('currentUser', data.username);
                     localStorage.setItem('userRole', data.role);
+                    localStorage.setItem('currentUserId', data.userId);
                     window.location.href = 'index.html';
                 } else if (data.needSetSecondFactor) {
                     // 未设置第二因子，显示设置表单
@@ -112,6 +113,7 @@
                     localStorage.setItem('loggedIn', 'true');
                     localStorage.setItem('currentUser', data.username);
                     localStorage.setItem('userRole', data.role);
+                    localStorage.setItem('currentUserId', data.userId);
                     window.location.href = 'index.html';
                 } else {
                     msg.innerText = data.error || '验证失败';
@@ -146,6 +148,7 @@
                     localStorage.removeItem('loggedIn');
                     localStorage.removeItem('currentUser');
                     localStorage.removeItem('userRole');
+                    localStorage.removeItem('currentUserId');
                     msg.style.color = 'green';
                     msg.innerText = '设置成功！请重新登录。';
                     setTimeout(() => {
