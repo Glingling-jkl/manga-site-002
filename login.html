@@ -68,6 +68,7 @@
                 } else if (data.needSetSecondFactor) {
                     pendingUsername = data.username;
                     pendingPassword = password;
+                    localStorage.setItem('currentUserId', data.userId); // 存储用户ID
                     document.getElementById('loginForm').style.display = 'none';
                     document.getElementById('setSecondFactorForm').style.display = 'block';
                     msg.innerText = '';
@@ -129,12 +130,19 @@
                 return;
             }
 
+            const userId = localStorage.getItem('currentUserId');
+            if (!userId) {
+                msg.innerText = '用户信息丢失，请重新登录';
+                setTimeout(() => { window.location.href = 'login.html'; }, 1500);
+                return;
+            }
+
             try {
                 const res = await fetch('/api/set-second-factor', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-Auth-UserId': localStorage.getItem('currentUserId') // 使用用户ID
+                        'X-Auth-UserId': userId
                     },
                     body: JSON.stringify({ secondFactor: newSecondFactor })
                 });
