@@ -269,8 +269,7 @@
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-Auth-Username': currentUser,
-                            'X-Auth-UserId': currentUserId,
+                            'X-Auth-UserId': currentUserId,   // 使用用户ID
                             'X-Auth-Role': currentUserRole
                         },
                         body: JSON.stringify({ comicId, content })
