@@ -148,7 +148,6 @@
             padding: 2px 8px;
             margin-right: 4px;
         }
-        /* 右下角悬浮上传按钮 */
         .fab-upload {
             position: fixed;
             bottom: 30px;
@@ -166,7 +165,7 @@
             cursor: pointer;
             transition: transform 0.2s, box-shadow 0.2s;
             z-index: 1000;
-            display: none; /* 默认隐藏 */
+            display: none;
         }
         .fab-upload:hover {
             transform: scale(1.1);
@@ -175,7 +174,6 @@
     </style>
 </head>
 <body>
-    <!-- 启动画面 -->
     <div id="splash" class="splash-screen">
         <div class="splash-content">
             <div class="spinner-outer" id="spinnerOuter"></div>
@@ -184,7 +182,6 @@
         </div>
     </div>
 
-    <!-- 主页内容 -->
     <div id="main-content">
         <div class="container">
             <div class="import-button" onclick="location.href='reader.html'">
@@ -202,11 +199,9 @@
         </div>
     </div>
 
-    <!-- 右下角悬浮上传按钮 -->
     <div id="fab-upload" class="fab-upload" onclick="location.href='admin-upload.html'">📤</div>
 
     <script>
-        // ---------- 启动动画 ----------
         (function() {
             if (sessionStorage.getItem('splashPlayed')) {
                 document.getElementById('splash').classList.add('hidden');
@@ -248,7 +243,6 @@
             });
         })();
 
-        // ---------- 页面初始化 ----------
         function initPage() {
             const isLoggedIn = localStorage.getItem('loggedIn') === 'true';
             const currentUser = localStorage.getItem('currentUser') || '';
@@ -258,20 +252,13 @@
 
             if (isLoggedIn) {
                 let userHtml = `<p>欢迎，${currentUser} (${userRole})</p>`;
-
-                // 用户管理按钮（system 和 admin 可见）
                 if (userRole === 'system' || userRole === 'admin') {
                     userHtml += `<button onclick="location.href='admin-users.html'" style="width:auto; padding:8px 20px; margin-top:10px; margin-right:10px;">👥 用户管理</button>`;
                 }
-
                 userHtml += `<button onclick="logout()" style="width:auto; padding:8px 20px; margin-top:10px;">退出登录</button>`;
                 userArea.innerHTML = userHtml;
-
-                // 显示漫画列表
                 document.getElementById('comic-list-area').style.display = 'block';
                 loadComics();
-
-                // 根据角色显示右下角上传按钮
                 if (userRole === 'system' || userRole === 'admin') {
                     fabUpload.style.display = 'flex';
                 } else {
@@ -287,6 +274,7 @@
             localStorage.removeItem('loggedIn');
             localStorage.removeItem('currentUser');
             localStorage.removeItem('userRole');
+            localStorage.removeItem('currentUserId');
             window.location.reload();
         };
 
@@ -294,7 +282,9 @@
 
         async function loadComics() {
             try {
-                const resp = await fetch('/api/comics');
+                const resp = await fetch('/api/comics', {
+                    headers: { 'X-Auth-UserId': localStorage.getItem('currentUserId') || '' }
+                });
                 const data = await resp.json();
                 if (data.success) {
                     comicsData = data.data;
