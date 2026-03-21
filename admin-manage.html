@@ -38,70 +38,40 @@
             background: #4caf50;
             color: white;
         }
-        .tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-        .tab {
-            padding: 10px 20px;
-            cursor: pointer;
-            background: #f0f0f0;
-            border-radius: 5px;
-        }
-        .tab.active {
-            background: #0070f3;
-            color: white;
-        }
-        .tab-content {
-            display: none;
-        }
-        .tab-content.active {
-            display: block;
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <h2>👥 用户管理</h2>
 
-        <div class="tabs" id="tabs">
-            <div class="tab active" data-tab="register">新注册</div>
-            <div class="tab" data-tab="manage">管理</div>
-        </div>
-
-        <div id="registerTab" class="tab-content active">
-            <form id="createUserForm" class="user-form">
-                <input type="text" id="username" placeholder="用户名 (至少3位)" required>
-                <input type="password" id="password" placeholder="密码 (至少6位)" required>
-                <input type="password" id="secondFactor" placeholder="第二层验证码 (8位，可选)" maxlength="8">
-                <div id="roleSelector">
-                    <label>角色：</label>
-                    <select id="role">
-                        <option value="user">普通用户 (user)</option>
-                        <option value="admin" id="adminOption" style="display:none;">管理员 (admin)</option>
-                        <option value="system" id="systemOption" style="display:none;">系统所有者 (system)</option>
-                    </select>
-                </div>
-                <button type="submit">创建用户</button>
-            </form>
-            <div id="registerResult" style="margin-top: 20px;"></div>
-        </div>
-
-        <div id="manageTab" class="tab-content">
-            <h3>用户列表</h3>
-            <div id="userListContainer">
-                <table id="userTable">
-                    <thead>
-                        <tr><th>ID</th><th>用户名</th><th>角色</th><th>注册时间</th><th>操作</th></tr>
-                    </thead>
-                    <tbody id="userListBody">
-                        <tr><td colspan="5">加载中...</td></tr>
-                    </tbody>
-                </table>
+        <form id="createUserForm" class="user-form">
+            <input type="text" id="username" placeholder="用户名 (至少3位)" required>
+            <input type="password" id="password" placeholder="密码 (至少6位)" required>
+            <input type="password" id="secondFactor" placeholder="第二层验证码 (8位，可选)" maxlength="8">
+            <div id="roleSelector">
+                <label>角色：</label>
+                <select id="role">
+                    <option value="user">普通用户 (user)</option>
+                    <option value="admin" id="adminOption" style="display:none;">管理员 (admin)</option>
+                    <option value="system" id="systemOption" style="display:none;">系统所有者 (system)</option>
+                </select>
             </div>
-            <div id="manageResult" style="margin-top: 20px;"></div>
+            <button type="submit">创建用户</button>
+        </form>
+        <div id="registerResult" style="margin-top: 20px;"></div>
+
+        <h3>用户列表</h3>
+        <div id="userListContainer">
+            <table id="userTable">
+                <thead>
+                    <tr><th>ID</th><th>用户名</th><th>角色</th><th>注册时间</th><th>操作</th></tr>
+                </thead>
+                <tbody id="userListBody">
+                    <tr><td colspan="5">加载中...</td></tr>
+                </tbody>
+            </table>
         </div>
+        <div id="manageResult" style="margin-top: 20px;"></div>
     </div>
 
     <script>
@@ -120,27 +90,7 @@
             document.getElementById('adminOption').style.display = 'block';
             document.getElementById('systemOption').style.display = 'block';
         } else if (currentUserRole === 'admin') {
-            // admin 不能创建 admin 或 system，隐藏角色选择
             document.getElementById('roleSelector').style.display = 'none';
-        }
-
-        // 选项卡切换
-        const tabs = document.querySelectorAll('.tab');
-        tabs.forEach(tab => {
-            tab.addEventListener('click', () => {
-                tabs.forEach(t => t.classList.remove('active'));
-                tab.classList.add('active');
-                const tabId = tab.getAttribute('data-tab');
-                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-                document.getElementById(tabId + 'Tab').classList.add('active');
-                if (tabId === 'manage') loadUsers();
-            });
-        });
-
-        // 默认激活管理选项卡（如果是管理员）
-        if (currentUserRole === 'system' || currentUserRole === 'admin') {
-            // 直接激活管理选项卡
-            document.querySelector('.tab[data-tab="manage"]').click();
         }
 
         // 创建用户表单提交
@@ -167,9 +117,7 @@
                 if (res.ok && data.success) {
                     resultDiv.innerHTML = '<p style="color:green;">✅ 用户创建成功</p>';
                     document.getElementById('createUserForm').reset();
-                    if (document.getElementById('manageTab').classList.contains('active')) {
-                        loadUsers();
-                    }
+                    loadUsers();
                 } else {
                     resultDiv.innerHTML = `<p style="color:red;">❌ 创建失败: ${data.error}</p>`;
                 }
@@ -181,6 +129,10 @@
         // 加载用户列表
         async function loadUsers() {
             const tbody = document.getElementById('userListBody');
+            if (!tbody) {
+                console.error('tbody not found');
+                return;
+            }
             tbody.innerHTML = '<tr><td colspan="5">加载中...</td></tr>';
             try {
                 const res = await fetch('/api/get-users', {
@@ -192,7 +144,7 @@
                     return;
                 }
                 const data = await res.json();
-                console.log('用户数据:', data); // 调试输出
+                console.log('用户数据:', data); // 调试
                 if (data.success) {
                     renderUsers(data.data);
                 } else {
@@ -206,6 +158,7 @@
 
         function renderUsers(users) {
             const tbody = document.getElementById('userListBody');
+            if (!tbody) return;
             if (users.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5">暂无用户</td></tr>';
                 return;
@@ -231,7 +184,6 @@
             tbody.innerHTML = html;
         }
 
-        // 防止 XSS
         function escapeHtml(str) {
             return str.replace(/[&<>]/g, function(m) {
                 if (m === '&') return '&amp;';
@@ -286,6 +238,9 @@
                 resultDiv.innerHTML = `<p style="color:red;">网络错误: ${err.message}</p>`;
             }
         };
+
+        // 页面加载后立即加载用户列表
+        window.addEventListener('load', loadUsers);
     </script>
 </body>
 </html>
