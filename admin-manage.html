@@ -3,75 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>用户管理</title>
+    <title>管理漫画</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        .user-form {
-            max-width: 400px;
-            margin: 0 auto;
-        }
-        .user-form input, .user-form select, .user-form button {
-            margin: 10px 0;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-        th, td {
+        .comic-manage-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
             padding: 10px;
-            text-align: left;
-            border-bottom: 1px solid #ddd;
+            border-bottom: 1px solid #eee;
         }
-        .action-btn {
-            padding: 5px 10px;
-            margin-right: 5px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
+        .comic-manage-item img {
+            width: 60px;
+            height: 60px;
+            object-fit: cover;
+            margin-right: 10px;
+        }
+        .comic-info {
+            flex: 1;
         }
         .delete-btn {
             background: #f44336;
             color: white;
+            border: none;
+            border-radius: 20px;
+            padding: 5px 15px;
+            cursor: pointer;
         }
-        .promote-btn {
-            background: #4caf50;
-            color: white;
+        .delete-btn:hover {
+            background: #d32f2f;
+        }
+        .no-permission {
+            color: #999;
+            font-style: italic;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>👥 用户管理</h2>
-
-        <form id="createUserForm" class="user-form">
-            <input type="text" id="username" placeholder="用户名 (至少3位)" required>
-            <input type="password" id="password" placeholder="密码 (至少6位)" required>
-            <input type="password" id="secondFactor" placeholder="第二层验证码 (8位，可选)" maxlength="8">
-            <div id="roleSelector">
-                <label>角色：</label>
-                <select id="role">
-                    <option value="user">普通用户 (user)</option>
-                    <option value="admin" id="adminOption" style="display:none;">管理员 (admin)</option>
-                    <option value="system" id="systemOption" style="display:none;">系统所有者 (system)</option>
-                </select>
-            </div>
-            <button type="submit">创建用户</button>
-        </form>
-        <div id="registerResult" style="margin-top: 20px;"></div>
-
-        <h3>用户列表</h3>
-        <div id="userListContainer">
-            <table id="userTable">
-                <thead>
-                    <tr><th>ID</th><th>用户名</th><th>角色</th><th>注册时间</th><th>操作</th></tr>
-                </thead>
-                <tbody id="userListBody">
-                    <tr><td colspan="5">加载中...</td></tr>
-                </tbody>
-            </table>
-        </div>
-        <div id="manageResult" style="margin-top: 20px;"></div>
+        <h2>📋 管理漫画</h2>
+        <div id="comic-list"></div>
+        <div id="result" style="margin-top: 20px;"></div>
     </div>
 
     <script>
@@ -82,165 +54,79 @@
         const currentUserRole = localStorage.getItem('userRole') || '';
         const currentUser = localStorage.getItem('currentUser') || '';
         if (currentUserRole !== 'system' && currentUserRole !== 'admin') {
-            window.location.replace('index.html');
+            window.location.replace('index.html'); // 普通用户跳转
         }
 
-        // 根据角色控制选项可见性
-        if (currentUserRole === 'system') {
-            document.getElementById('adminOption').style.display = 'block';
-            document.getElementById('systemOption').style.display = 'block';
-        } else if (currentUserRole === 'admin') {
-            document.getElementById('roleSelector').style.display = 'none';
-        }
+        const UPLOAD_TOKEN = 'manga-upload-secret-2025'; // 与后端环境变量一致
 
-        // 创建用户表单提交
-        document.getElementById('createUserForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const username = document.getElementById('username').value.trim();
-            const password = document.getElementById('password').value;
-            const secondFactor = document.getElementById('secondFactor').value.trim() || undefined;
-            let role = document.getElementById('role').value;
-            if (currentUserRole === 'admin') role = 'user';
-
-            const resultDiv = document.getElementById('registerResult');
-            resultDiv.innerHTML = '创建中...';
+        async function loadComics() {
             try {
-                const res = await fetch('/api/create-user', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Auth-Role': currentUserRole
-                    },
-                    body: JSON.stringify({ username, password, secondFactor, role })
-                });
+                const res = await fetch('/api/comics');
                 const data = await res.json();
-                if (res.ok && data.success) {
-                    resultDiv.innerHTML = '<p style="color:green;">✅ 用户创建成功</p>';
-                    document.getElementById('createUserForm').reset();
-                    loadUsers();
-                } else {
-                    resultDiv.innerHTML = `<p style="color:red;">❌ 创建失败: ${data.error}</p>`;
-                }
-            } catch (err) {
-                resultDiv.innerHTML = `<p style="color:red;">网络错误: ${err.message}</p>`;
-            }
-        });
-
-        // 加载用户列表
-        async function loadUsers() {
-            const tbody = document.getElementById('userListBody');
-            if (!tbody) {
-                console.error('tbody not found');
-                return;
-            }
-            tbody.innerHTML = '<tr><td colspan="5">加载中...</td></tr>';
-            try {
-                const res = await fetch('/api/get-users', {
-                    headers: { 'X-Auth-Role': currentUserRole }
-                });
-                if (!res.ok) {
-                    const text = await res.text();
-                    tbody.innerHTML = `<tr><td colspan="5">HTTP错误 ${res.status}: ${text}</td></tr>`;
-                    return;
-                }
-                const data = await res.json();
-                console.log('用户数据:', data); // 调试
                 if (data.success) {
-                    renderUsers(data.data);
+                    renderComics(data.data);
                 } else {
-                    tbody.innerHTML = `<tr><td colspan="5">加载失败: ${data.error}</td></tr>`;
+                    document.getElementById('comic-list').innerHTML = '<p>加载失败</p>';
                 }
             } catch (err) {
-                console.error('加载用户错误:', err);
-                tbody.innerHTML = `<tr><td colspan="5">网络错误: ${err.message}</td></tr>`;
+                document.getElementById('comic-list').innerHTML = `<p>网络错误: ${err.message}</p>`;
             }
         }
 
-        function renderUsers(users) {
-            const tbody = document.getElementById('userListBody');
-            if (!tbody) return;
-            if (users.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5">暂无用户</td></tr>';
+        function renderComics(comics) {
+            const listDiv = document.getElementById('comic-list');
+            if (comics.length === 0) {
+                listDiv.innerHTML = '<p>暂无漫画</p>';
                 return;
             }
             let html = '';
-            for (let u of users) {
-                let deleteBtn = '', promoteBtn = '';
-                const canDelete = (currentUserRole === 'system' && u.role !== 'system') ||
-                                 (currentUserRole === 'admin' && u.role === 'user');
-                const canPromote = (currentUserRole === 'system' && u.role === 'user');
-
-                if (canDelete) deleteBtn = `<button class="action-btn delete-btn" onclick="deleteUser(${u.id})">删除</button>`;
-                if (canPromote) promoteBtn = `<button class="action-btn promote-btn" onclick="promoteUser(${u.id})">提权为管理员</button>`;
-
-                html += `<tr>
-                    <td>${u.id}</td>
-                    <td>${escapeHtml(u.username)}</td>
-                    <td>${u.role}</td>
-                    <td>${new Date(u.created_at).toLocaleString()}</td>
-                    <td>${deleteBtn} ${promoteBtn}</td>
-                </tr>`;
+            for (let c of comics) {
+                let actionButton = '';
+                // 判断权限：system 可删所有；admin 可删非 system 的漫画
+                if (currentUserRole === 'system' || (currentUserRole === 'admin' && c.owner_role !== 'system')) {
+                    actionButton = `<button class="delete-btn" onclick="deleteComic(${c.id})">删除</button>`;
+                } else {
+                    actionButton = `<span class="no-permission">无权限</span>`;
+                }
+                html += `
+                    <div class="comic-manage-item" data-id="${c.id}">
+                        <img src="${c.cover_url}" alt="${c.title}">
+                        <div class="comic-info">
+                            <strong>${c.title}</strong> (${c.author})<br>
+                            上传者: ${c.uploader} | 所有者: ${c.owner_role}
+                        </div>
+                        ${actionButton}
+                    </div>
+                `;
             }
-            tbody.innerHTML = html;
+            listDiv.innerHTML = html;
         }
 
-        function escapeHtml(str) {
-            return str.replace(/[&<>]/g, function(m) {
-                if (m === '&') return '&amp;';
-                if (m === '<') return '&lt;';
-                if (m === '>') return '&gt;';
-                return m;
-            });
-        }
-
-        window.deleteUser = async function(userId) {
-            if (!confirm('确定要删除该用户吗？此操作不可撤销！')) return;
-            const resultDiv = document.getElementById('manageResult');
+        async function deleteComic(id) {
+            if (!confirm('确定要删除这本漫画吗？此操作不可撤销！')) return;
+            const resultDiv = document.getElementById('result');
             resultDiv.innerHTML = '删除中...';
             try {
-                const res = await fetch(`/api/delete-user?id=${userId}`, {
+                const res = await fetch(`/api/comics/${id}`, {
                     method: 'DELETE',
-                    headers: { 'X-Auth-Role': currentUserRole }
-                });
-                const data = await res.json();
-                if (data.success) {
-                    resultDiv.innerHTML = '<p style="color:green;">✅ 用户已删除</p>';
-                    loadUsers();
-                } else {
-                    resultDiv.innerHTML = `<p style="color:red;">❌ 删除失败: ${data.error}</p>`;
-                }
-            } catch (err) {
-                resultDiv.innerHTML = `<p style="color:red;">网络错误: ${err.message}</p>`;
-            }
-        };
-
-        window.promoteUser = async function(userId) {
-            if (!confirm('确定要将该用户提升为管理员吗？')) return;
-            const resultDiv = document.getElementById('manageResult');
-            resultDiv.innerHTML = '处理中...';
-            try {
-                const res = await fetch('/api/update-user-role', {
-                    method: 'PATCH',
                     headers: {
-                        'Content-Type': 'application/json',
+                        'X-Upload-Token': UPLOAD_TOKEN,
                         'X-Auth-Role': currentUserRole
-                    },
-                    body: JSON.stringify({ userId, newRole: 'admin' })
+                    }
                 });
                 const data = await res.json();
                 if (data.success) {
-                    resultDiv.innerHTML = '<p style="color:green;">✅ 已提升为管理员</p>';
-                    loadUsers();
+                    resultDiv.innerHTML = '<p style="color:green;">删除成功</p>';
+                    loadComics(); // 刷新列表
                 } else {
-                    resultDiv.innerHTML = `<p style="color:red;">❌ 提权失败: ${data.error}</p>`;
+                    resultDiv.innerHTML = `<p style="color:red;">删除失败: ${data.error}</p>`;
                 }
             } catch (err) {
                 resultDiv.innerHTML = `<p style="color:red;">网络错误: ${err.message}</p>`;
             }
-        };
+        }
 
-        // 页面加载后立即加载用户列表
-        window.addEventListener('load', loadUsers);
+        loadComics();
     </script>
 </body>
 </html>
