@@ -9,7 +9,7 @@ export async function onRequestGet(context) {
 
     try {
         const { results } = await env.DB.prepare(
-            'SELECT id, username, user_role, content, created_at FROM comments WHERE comic_id = ? ORDER BY created_at DESC'
+            'SELECT id, user_id, username, user_role, content, created_at FROM comments WHERE comic_id = ? ORDER BY created_at DESC'
         ).bind(comicId).all();
         return Response.json({ success: true, data: results });
     } catch (err) {
@@ -32,11 +32,13 @@ export async function onRequestPost(context) {
             return Response.json({ success: false, error: '缺少参数' }, { status: 400 });
         }
 
+        // 验证漫画存在
         const comic = await env.DB.prepare('SELECT id FROM comics WHERE id = ?').bind(comicId).first();
         if (!comic) {
             return Response.json({ success: false, error: '漫画不存在' }, { status: 404 });
         }
 
+        // 获取用户信息（包括角色）
         const user = await env.DB.prepare('SELECT username, role FROM users WHERE id = ?').bind(userId).first();
         if (!user) {
             return Response.json({ success: false, error: '用户不存在' }, { status: 404 });
@@ -68,6 +70,7 @@ export async function onRequestDelete(context) {
     }
 
     try {
+        // 获取评论信息
         const comment = await env.DB.prepare(
             'SELECT id, user_id, user_role, created_at FROM comments WHERE id = ?'
         ).bind(commentId).first();
@@ -75,11 +78,15 @@ export async function onRequestDelete(context) {
             return Response.json({ success: false, error: '评论不存在' }, { status: 404 });
         }
 
+        // 计算时间差（毫秒）
         const now = Date.now();
-        const commentTime = new Date(comment.created_at).getTime();
-        const isOwner = (comment.user_id == userId);
-        const isWithin5Min = (now - commentTime) <= 5 * 60 * 1000;
+        const commentTime = new Date(comment.created_at).getTime(); // 数据库中的时间直接解析为本地时间戳
+        const diffMs = now - commentTime;
+        const isWithin5Min = diffMs <= 5 * 60 * 1000;
 
+        const isOwner = (comment.user_id == userId);
+
+        // 权限判断
         let canDelete = false;
         if (userRole === 'system') {
             canDelete = true;
@@ -97,6 +104,7 @@ export async function onRequestDelete(context) {
             return Response.json({ success: false, error: '无权删除此评论' }, { status: 403 });
         }
 
+        // 执行删除
         await env.DB.prepare('DELETE FROM comments WHERE id = ?').bind(commentId).run();
         return Response.json({ success: true, message: '删除成功' });
     } catch (err) {
