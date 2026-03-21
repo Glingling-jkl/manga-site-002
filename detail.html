@@ -18,12 +18,76 @@
             font-size: 1.2rem;
             margin-top: 20px;
         }
+        .comments-section {
+            margin-top: 40px;
+            text-align: left;
+        }
+        .comments-section h3 {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .comment-item {
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .comment-user {
+            font-weight: bold;
+            color: #0070f3;
+        }
+        .comment-time {
+            font-size: 0.8rem;
+            color: #999;
+            margin-left: 10px;
+        }
+        .comment-content {
+            margin-top: 5px;
+        }
+        .comment-form {
+            margin-top: 20px;
+        }
+        .comment-form textarea {
+            width: 100%;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            resize: vertical;
+        }
+        .comment-form button {
+            margin-top: 10px;
+            background: #0070f3;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+        }
+        .comment-form button:hover {
+            background: #0051b3;
+        }
+        .comment-error {
+            color: red;
+            margin-top: 5px;
+        }
+        .login-prompt {
+            margin-top: 20px;
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
     <div class="container">
         <button onclick="location.href='index.html'" style="margin-bottom:20px;">⬅ 返回列表</button>
         <div id="comic-detail" class="comic-detail"></div>
+
+        <div id="comments-section" class="comments-section">
+            <h3>💬 评论区</h3>
+            <div id="comment-list"></div>
+            <div id="comment-form-container"></div>
+        </div>
     </div>
 
     <script>
@@ -79,7 +143,12 @@
         }
 
         // ---------- 登录检查 ----------
-        if (!localStorage.getItem('loggedIn')) {
+        const isLoggedIn = localStorage.getItem('loggedIn') === 'true';
+        const currentUser = localStorage.getItem('currentUser') || '';
+        const currentUserId = localStorage.getItem('currentUserId') || '';
+        const currentUserRole = localStorage.getItem('userRole') || '';
+
+        if (!isLoggedIn) {
             window.location.replace('login.html?needlogin=1');
         }
 
@@ -89,8 +158,10 @@
             document.getElementById('comic-detail').innerHTML = '<p>参数错误</p>';
         } else {
             loadComicDetail(comicId);
+            loadComments(comicId);
         }
 
+        // 加载漫画详情
         async function loadComicDetail(id) {
             try {
                 const res = await fetch(`/api/comics/${id}`);
@@ -120,17 +191,107 @@
             `;
             document.getElementById('comic-detail').innerHTML = html;
 
-            // 加载封面
             const coverImg = document.getElementById('cover-img');
             if (coverImg) {
                 loadCoverImage(coverImg, comic.cover_url);
             }
         }
 
-        // 【关键修改】跳转阅读器时同时传递 id 和 zip 参数
         function startReading(zipUrl) {
-            const currentId = new URLSearchParams(window.location.search).get('id');
-            window.location.href = `reader.html?zip=${encodeURIComponent(zipUrl)}&id=${currentId}`;
+            window.location.href = `reader.html?zip=${encodeURIComponent(zipUrl)}&id=${comicId}`;
+        }
+
+        // ---------- 评论功能 ----------
+        async function loadComments(comicId) {
+            const listDiv = document.getElementById('comment-list');
+            listDiv.innerHTML = '加载评论中...';
+            try {
+                const res = await fetch(`/api/comments?comicId=${comicId}`);
+                const data = await res.json();
+                if (data.success) {
+                    renderComments(data.data);
+                } else {
+                    listDiv.innerHTML = `<p class="comment-error">加载失败: ${data.error}</p>`;
+                }
+            } catch (err) {
+                listDiv.innerHTML = `<p class="comment-error">网络错误: ${err.message}</p>`;
+            }
+        }
+
+        function renderComments(comments) {
+            const listDiv = document.getElementById('comment-list');
+            if (comments.length === 0) {
+                listDiv.innerHTML = '<p>暂无评论，来说两句吧～</p>';
+                return;
+            }
+            let html = '';
+            for (let c of comments) {
+                html += `
+                    <div class="comment-item">
+                        <span class="comment-user">${escapeHtml(c.username)}</span>
+                        <span class="comment-time">${new Date(c.created_at).toLocaleString()}</span>
+                        <div class="comment-content">${escapeHtml(c.content)}</div>
+                    </div>
+                `;
+            }
+            listDiv.innerHTML = html;
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+
+        // 发表评论表单
+        const container = document.getElementById('comment-form-container');
+        if (isLoggedIn) {
+            container.innerHTML = `
+                <div class="comment-form">
+                    <textarea id="commentContent" rows="3" placeholder="写下你的评论..."></textarea>
+                    <button id="submitCommentBtn">发表评论</button>
+                    <div id="commentError" class="comment-error"></div>
+                </div>
+            `;
+            document.getElementById('submitCommentBtn').addEventListener('click', async () => {
+                const content = document.getElementById('commentContent').value.trim();
+                const errorDiv = document.getElementById('commentError');
+                if (!content) {
+                    errorDiv.innerText = '评论内容不能为空';
+                    return;
+                }
+                errorDiv.innerText = '';
+                try {
+                    const res = await fetch('/api/comments', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Auth-Username': currentUser,
+                            'X-Auth-UserId': currentUserId,
+                            'X-Auth-Role': currentUserRole
+                        },
+                        body: JSON.stringify({ comicId, content })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        document.getElementById('commentContent').value = '';
+                        loadComments(comicId);
+                    } else {
+                        errorDiv.innerText = data.error || '发表失败';
+                    }
+                } catch (err) {
+                    errorDiv.innerText = '网络错误，请稍后重试';
+                }
+            });
+        } else {
+            container.innerHTML = `
+                <div class="login-prompt">
+                    <p>请先 <a href="login.html">登录</a> 后发表评论。</p>
+                </div>
+            `;
         }
     </script>
 </body>
