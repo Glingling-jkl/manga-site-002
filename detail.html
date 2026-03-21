@@ -262,12 +262,10 @@
             let left = x + offsetX;
             let top = y + offsetY;
 
-            // 超出右边界则显示在左边
             if (left + menuWidth > winWidth) {
                 left = x - menuWidth - offsetX;
                 if (left < 0) left = 0;
             }
-            // 超出下边界则显示在上边
             if (top + menuHeight > winHeight) {
                 top = y - menuHeight - offsetY;
                 if (top < 0) top = 0;
@@ -343,15 +341,14 @@
             const commentId = commentElement.getAttribute('data-comment-id');
             const commentUserId = commentElement.getAttribute('data-user-id');
             const commentUserRole = commentElement.getAttribute('data-user-role');
-            const commentCreatedAt = commentElement.getAttribute('data-created-at');
+            const commentCreatedAt = parseInt(commentElement.getAttribute('data-created-at'));
 
             const currentUserId = localStorage.getItem('currentUserId');
             const currentUserRole = localStorage.getItem('userRole');
 
             const isOwner = (commentUserId === currentUserId);
-            const commentTime = new Date(commentCreatedAt).getTime();
             const now = Date.now();
-            const isWithin5Min = (now - commentTime) <= 5 * 60 * 1000;
+            const isWithin5Min = (now - commentCreatedAt) <= 5 * 60 * 1000;
 
             const canRecall = isOwner && isWithin5Min;
             let canDelete = false;
@@ -373,10 +370,8 @@
             `;
             document.body.appendChild(menu);
 
-            // 获取菜单尺寸
             const menuWidth = menu.offsetWidth;
             const menuHeight = menu.offsetHeight;
-
             const x = event.clientX;
             const y = event.clientY;
             const pos = getPosition(x, y, menuWidth, menuHeight);
