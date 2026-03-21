@@ -52,10 +52,12 @@ export async function onRequestPost(context) {
             'UPDATE users SET last_ip = ? WHERE id = ?'
         ).bind(clientIP, user.id).run();
 
+        // 登录成功，返回用户信息（包括 id）
         return Response.json({
             success: true,
             username: user.username,
-            role: user.role
+            role: user.role,
+            userId: user.id
         });
 
     } catch (err) {
