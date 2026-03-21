@@ -2,10 +2,9 @@
 export async function onRequestPost(context) {
     const { request, env } = context;
 
-    // 从请求头获取用户ID（数字，无编码问题）
     const userId = request.headers.get('X-Auth-UserId');
     if (!userId) {
-        return Response.json({ success: false, error: '未提供身份信息' }, { status: 403 });
+        return Response.json({ success: false, error: '未提供身份信息，请重新登录' }, { status: 403 });
     }
 
     try {
@@ -21,7 +20,7 @@ export async function onRequestPost(context) {
         ).bind(secondFactorHash, userId).run();
 
         if (result.meta.changes === 0) {
-            return Response.json({ error: '用户不存在' }, { status: 404 });
+            return Response.json({ error: '用户不存在，请重新登录' }, { status: 404 });
         }
 
         return Response.json({ success: true, message: '第二层验证码设置成功' });
