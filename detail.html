@@ -31,6 +31,7 @@
             border-bottom: 1px solid #f0f0f0;
             position: relative;
             cursor: default;
+            user-select: none; /* 禁止选中文本 */
         }
         .comment-user-info {
             display: inline-block;
@@ -252,6 +253,28 @@
         // ---------- 评论功能 ----------
         let currentMenu = null;
 
+        // 智能菜单位置计算
+        function getPosition(x, y, menuWidth, menuHeight) {
+            const winWidth = window.innerWidth;
+            const winHeight = window.innerHeight;
+
+            let offsetX = 10, offsetY = 10;
+            let left = x + offsetX;
+            let top = y + offsetY;
+
+            // 超出右边界则显示在左边
+            if (left + menuWidth > winWidth) {
+                left = x - menuWidth - offsetX;
+                if (left < 0) left = 0;
+            }
+            // 超出下边界则显示在上边
+            if (top + menuHeight > winHeight) {
+                top = y - menuHeight - offsetY;
+                if (top < 0) top = 0;
+            }
+            return { left, top };
+        }
+
         async function loadComments(comicId) {
             const listDiv = document.getElementById('comment-list');
             listDiv.innerHTML = '加载评论中...';
@@ -350,10 +373,15 @@
             `;
             document.body.appendChild(menu);
 
+            // 获取菜单尺寸
+            const menuWidth = menu.offsetWidth;
+            const menuHeight = menu.offsetHeight;
+
             const x = event.clientX;
             const y = event.clientY;
-            menu.style.left = x + 'px';
-            menu.style.top = y + 'px';
+            const pos = getPosition(x, y, menuWidth, menuHeight);
+            menu.style.left = pos.left + 'px';
+            menu.style.top = pos.top + 'px';
 
             menu.querySelectorAll('li').forEach(li => {
                 li.addEventListener('click', async (e) => {
