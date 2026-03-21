@@ -6,7 +6,6 @@
     <title>上传漫画 - 管理员</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* 额外样式，与站点风格统一 */
         .upload-form input[type="file"] {
             padding: 8px;
             background: #f9f9f9;
@@ -30,6 +29,16 @@
         }
         .admin-link a:hover {
             text-decoration: underline;
+        }
+        .toggle-switch {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .toggle-switch input {
+            width: auto;
+            margin: 0;
         }
     </style>
 </head>
@@ -58,6 +67,12 @@
             <label>简介</label>
             <textarea name="description" rows="4" placeholder="简单描述漫画内容..."></textarea>
 
+            <div class="toggle-switch">
+                <label>高危内容：</label>
+                <input type="checkbox" id="isAdultCheckbox">
+                <span>是（包含敏感内容）</span>
+            </div>
+
             <label>封面图片 *</label>
             <input type="file" name="cover" accept="image/*" required>
 
@@ -75,21 +90,18 @@
     </div>
 
     <script>
-        // 登录检查
         if (!localStorage.getItem('loggedIn')) {
             window.location.replace('login.html?needlogin=1');
         }
         const currentUser = localStorage.getItem('currentUser') || 'unknown';
         const userRole = localStorage.getItem('userRole') || 'user';
-        // 权限检查：只有 system/admin 可以访问
         if (userRole !== 'system' && userRole !== 'admin') {
             window.location.replace('index.html');
         }
 
-        // 显示上传者信息
         document.getElementById('uploaderDisplay').value = `${currentUser} (${userRole})`;
 
-        const UPLOAD_TOKEN = 'manga-upload-secret-2025'; // 与后端环境变量一致
+        const UPLOAD_TOKEN = 'manga-upload-secret-2025';
 
         const form = document.getElementById('uploadForm');
         const resultDiv = document.getElementById('result');
@@ -99,9 +111,10 @@
             resultDiv.innerHTML = '上传中...';
 
             const formData = new FormData(form);
-            // 添加上传者信息和所有者角色
             formData.append('uploader', `${currentUser} (${userRole})`);
             formData.append('owner_role', userRole);
+            const isAdult = document.getElementById('isAdultCheckbox').checked ? 'yes' : 'no';
+            formData.append('is_adult', isAdult);
 
             try {
                 const response = await fetch('/api/comics/upload', {
@@ -125,6 +138,7 @@
                     `;
                     form.reset();
                     document.getElementById('uploaderDisplay').value = `${currentUser} (${userRole})`;
+                    document.getElementById('isAdultCheckbox').checked = false;
                 } else {
                     resultDiv.innerHTML = `
                         <div style="color:red; background:#ffe8e8; padding:15px; border-radius:8px;">
