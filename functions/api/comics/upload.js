@@ -17,6 +17,7 @@ export async function onRequestPost(context) {
         const pages = parseInt(formData.get('pages') || '0');
         const description = formData.get('description') || '';
         const ownerRole = formData.get('owner_role') || 'user';
+        const isAdult = formData.get('is_adult') === 'yes' ? 'yes' : 'no'; // 新增
 
         if (!title || !author) {
             return Response.json({ success: false, error: '标题和作者不能为空' }, { status: 400 });
@@ -82,12 +83,12 @@ export async function onRequestPost(context) {
         const coverUrl = `${rawBase}/${coverFileName}`;
         const zipUrl = `${rawBase}/${zipFileName}`;
 
-        // 存入数据库，包含 owner_role
+        // 插入数据库，增加 is_adult 字段
         const result = await env.DB.prepare(
             `INSERT INTO comics 
-            (title, author, uploader, tags, chapters, pages, cover_url, zip_url, description, owner_role) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        ).bind(title, author, uploader, tags, chapters, pages, coverUrl, zipUrl, description, ownerRole)
+            (title, author, uploader, tags, chapters, pages, cover_url, zip_url, description, owner_role, is_adult) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ).bind(title, author, uploader, tags, chapters, pages, coverUrl, zipUrl, description, ownerRole, isAdult)
          .run();
 
         return Response.json({
