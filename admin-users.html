@@ -17,18 +17,26 @@
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
+            font-size: 0.85rem; /* 缩小整体字体 */
         }
         th, td {
-            padding: 10px;
+            padding: 8px 6px; /* 减小内边距 */
             text-align: left;
             border-bottom: 1px solid #ddd;
+            word-break: break-word; /* 防止溢出 */
+        }
+        .action-buttons {
+            display: flex;
+            flex-direction: column; /* 上下排列 */
+            gap: 4px;
         }
         .action-btn {
-            padding: 5px 10px;
-            margin-right: 5px;
+            padding: 4px 8px;
             border: none;
             border-radius: 4px;
             cursor: pointer;
+            font-size: 0.8rem;
+            white-space: nowrap;
         }
         .delete-btn {
             background: #f44336;
@@ -37,6 +45,14 @@
         .promote-btn {
             background: #4caf50;
             color: white;
+        }
+        .adult-btn {
+            background: #ff9800;
+            color: white;
+        }
+        /* 移动端适配：表格可横向滚动 */
+        .table-wrapper {
+            overflow-x: auto;
         }
     </style>
 </head>
@@ -61,22 +77,24 @@
         <div id="registerResult" style="margin-top: 20px;"></div>
 
         <h3>用户列表</h3>
-        <table id="userTable">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>用户名</th>
-                    <th>角色</th>
-                    <th>成人权限</th>
-                    <th>用户偏好</th>
-                    <th>注册时间</th>
-                    <th>操作</th>
-                </tr>
-            </thead>
-            <tbody id="userListBody">
-                <tr><td colspan="7">加载中...</td></tr>
-            </tbody>
-        </table>
+        <div class="table-wrapper">
+            <table id="userTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>用户名</th>
+                        <th>角色</th>
+                        <th>成人权限</th>
+                        <th>用户偏好</th>
+                        <th>注册时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="userListBody">
+                    <tr><td colspan="7">加载中...</td></tr>
+                </tbody>
+            </table>
+        </div>
         <div id="manageResult" style="margin-top: 20px;"></div>
     </div>
 
@@ -169,7 +187,7 @@
                 if (canPromote) promoteBtn = `<button class="action-btn promote-btn" onclick="promoteUser(${u.id})">提权</button>`;
                 if (currentUserRole === 'system') {
                     const statusText = u.adult_enabled === 'yes' ? '允许' : '禁止';
-                    adultToggle = `<button class="action-btn" onclick="toggleAdultEnabled(${u.id}, '${u.adult_enabled}')">成人权限: ${statusText}</button>`;
+                    adultToggle = `<button class="action-btn adult-btn" onclick="toggleAdultEnabled(${u.id}, '${u.adult_enabled}')">成人权限: ${statusText}</button>`;
                 }
 
                 html += `
@@ -180,7 +198,7 @@
                         <td>${u.adult_enabled === 'yes' ? '有权限' : '无权限'}</td>
                         <td>${u.allow_adult === 'yes' ? '允许' : '禁止'}</td>
                         <td>${new Date(u.created_at).toLocaleString()}</td>
-                        <td>${deleteBtn} ${promoteBtn} ${adultToggle}</td>
+                        <td class="action-buttons">${deleteBtn} ${promoteBtn} ${adultToggle}</td>
                     </tr>
                 `;
             }
