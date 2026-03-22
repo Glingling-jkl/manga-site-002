@@ -260,7 +260,7 @@
                         
                         viewer.innerHTML = ''; // 清空，准备显示图片
                         for (let i = 0; i < info.parts.length; i++) {
-                            const partUrl = `${baseUrl}/${info.parts[i]}`;
+                            const partUrl = `${baseUrl}/parts/${info.parts[i]}`; // 添加 parts/ 前缀
                             await downloadPart(partUrl, i + 1);
                             const percent = Math.round(((i + 1) / info.total_parts) * 100);
                             progressFill.style.width = percent + '%';
@@ -403,4 +403,4 @@
         });
     </script>
 </body>
-        </html>
+</html>
