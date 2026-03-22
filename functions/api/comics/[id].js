@@ -29,9 +29,11 @@ async function handleGet(request, env, id) {
             if (!userId) {
                 return Response.json({ success: false, error: '此内容需要登录才能查看' }, { status: 403 });
             }
-            const user = await env.DB.prepare('SELECT allow_adult FROM users WHERE id = ?').bind(userId).first();
-            if (!user || user.allow_adult !== 'yes') {
-                return Response.json({ success: false, error: '您未允许查看高危内容，请在用户管理或联系管理员开启' }, { status: 403 });
+            const user = await env.DB.prepare(
+                'SELECT adult_enabled, allow_adult FROM users WHERE id = ?'
+            ).bind(userId).first();
+            if (!user || user.adult_enabled !== 'yes' || user.allow_adult !== 'yes') {
+                return Response.json({ success: false, error: '您未获得查看高危内容的权限，或您已关闭显示' }, { status: 403 });
             }
         }
 
@@ -134,4 +136,4 @@ function extractPathFromMirror(url) {
     }
     const match = rawPart.match(/raw\.githubusercontent\.com\/[^/]+\/[^/]+\/[^/]+\/(.+)/);
     return match ? match[1] : null;
-    }
+}
