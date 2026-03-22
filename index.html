@@ -375,7 +375,8 @@
                 mainMenu.style.display = 'none';
                 const btnRect = menuBtn.getBoundingClientRect();
                 subMenu.style.bottom = (window.innerHeight - btnRect.top + 10) + 'px';
-                subMenu.style.right = (btnRect.left - 10) + 'px';
+                // 向左偏移150px，避免被屏幕遮挡
+                subMenu.style.right = (btnRect.left - 150) + 'px';
                 subMenu.style.display = 'block';
             });
 
