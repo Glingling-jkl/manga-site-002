@@ -63,12 +63,20 @@
         <h3>用户列表</h3>
         <table id="userTable">
             <thead>
-                <tr><th>ID</th><th>用户名</th><th>角色</th><th>成人内容</th><th>注册时间</th><th>操作</th> </>
+                <tr>
+                    <th>ID</th>
+                    <th>用户名</th>
+                    <th>角色</th>
+                    <th>成人权限</th>
+                    <th>用户偏好</th>
+                    <th>注册时间</th>
+                    <th>操作</th>
+                </tr>
             </thead>
             <tbody id="userListBody">
-                <tr><td colspan="6">加载中...</td></tr>
+                <tr><td colspan="7">加载中...</td></tr>
             </tbody>
-         </table>
+        </table>
         <div id="manageResult" style="margin-top: 20px;"></div>
     </div>
 
@@ -123,31 +131,31 @@
 
         async function loadUsers() {
             const tbody = document.getElementById('userListBody');
-            tbody.innerHTML = ' <td colspan="6">加载中...</td>';
+            tbody.innerHTML = '<tr><td colspan="7">加载中...</td></tr>';
             try {
                 const res = await fetch('/api/get-users', {
                     headers: { 'X-Auth-Role': currentUserRole }
                 });
                 if (!res.ok) {
                     const text = await res.text();
-                    tbody.innerHTML = `<tr><td colspan="6">HTTP错误 ${res.status}: ${text}</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="7">HTTP错误 ${res.status}: ${text}</td></tr>`;
                     return;
                 }
                 const data = await res.json();
                 if (data.success) {
                     renderUsers(data.data);
                 } else {
-                    tbody.innerHTML = `<tr><td colspan="6">加载失败: ${data.error}</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="7">加载失败: ${data.error}</td></tr>`;
                 }
             } catch (err) {
-                tbody.innerHTML = `<tr><td colspan="6">网络错误: ${err.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7">网络错误: ${err.message}</td></tr>`;
             }
         }
 
         function renderUsers(users) {
             const tbody = document.getElementById('userListBody');
             if (users.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6">暂无用户</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7">暂无用户</td></tr>';
                 return;
             }
             let html = '';
@@ -160,17 +168,21 @@
                 if (canDelete) deleteBtn = `<button class="action-btn delete-btn" onclick="deleteUser(${u.id})">删除</button>`;
                 if (canPromote) promoteBtn = `<button class="action-btn promote-btn" onclick="promoteUser(${u.id})">提权</button>`;
                 if (currentUserRole === 'system') {
-                    adultToggle = `<button class="action-btn" onclick="toggleAllowAdult(${u.id}, '${u.allow_adult}')">切换成人内容</button>`;
+                    const statusText = u.adult_enabled === 'yes' ? '允许' : '禁止';
+                    adultToggle = `<button class="action-btn" onclick="toggleAdultEnabled(${u.id}, '${u.adult_enabled}')">成人权限: ${statusText}</button>`;
                 }
 
-                html += ` <tr>
-                    <td>${u.id}</td>
-                    <td>${escapeHtml(u.username)}</td>
-                    <td>${u.role}</td>
-                    <td>${u.allow_adult === 'yes' ? '允许' : '禁止'}</td>
-                    <td>${new Date(u.created_at).toLocaleString()}</td>
-                    <td>${deleteBtn} ${promoteBtn} ${adultToggle}</td>
-                </tr>`;
+                html += `
+                    <tr>
+                        <td>${u.id}</td>
+                        <td>${escapeHtml(u.username)}</td>
+                        <td>${u.role}</td>
+                        <td>${u.adult_enabled === 'yes' ? '有权限' : '无权限'}</td>
+                        <td>${u.allow_adult === 'yes' ? '允许' : '禁止'}</td>
+                        <td>${new Date(u.created_at).toLocaleString()}</td>
+                        <td>${deleteBtn} ${promoteBtn} ${adultToggle}</td>
+                    </tr>
+                `;
             }
             tbody.innerHTML = html;
         }
@@ -230,20 +242,20 @@
             }
         };
 
-        window.toggleAllowAdult = async function(userId, currentValue) {
+        window.toggleAdultEnabled = async function(userId, currentValue) {
             const newValue = currentValue === 'yes' ? 'no' : 'yes';
             if (!confirm(`确定要将该用户的成人内容权限改为“${newValue === 'yes' ? '允许' : '禁止'}”吗？`)) return;
             const resultDiv = document.getElementById('manageResult');
             resultDiv.innerHTML = '处理中...';
             try {
-                const res = await fetch('/api/update-user-allow-adult', {
+                const res = await fetch('/api/update-user-adult-enabled', {
                     method: 'PATCH',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-Auth-UserId': localStorage.getItem('currentUserId'),
                         'X-Auth-Role': currentUserRole
                     },
-                    body: JSON.stringify({ userId, allowAdult: newValue })
+                    body: JSON.stringify({ userId, adultEnabled: newValue })
                 });
                 const data = await res.json();
                 if (data.success) {
