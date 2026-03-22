@@ -49,16 +49,17 @@
         .btn-submit {
             margin-top: 20px;
         }
-        .debug-info {
-            margin-top: 20px;
-            background: #f5f5f5;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 10px;
-            font-family: monospace;
-            font-size: 0.8rem;
-            white-space: pre-wrap;
-            word-break: break-all;
+        .admin-link {
+            margin-top: 30px;
+            text-align: center;
+        }
+        .admin-link a {
+            color: #0070f3;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .admin-link a:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
@@ -105,7 +106,10 @@
 
         <div id="result" style="margin-top: 20px;"></div>
         <div id="uploadResult" style="margin-top: 20px;"></div>
-        <div id="debugInfo" class="debug-info" style="display: none;"></div>
+
+        <div class="admin-link">
+            <a href="admin-manage.html">📋 管理已有漫画</a>
+        </div>
     </div>
 
     <script>
@@ -127,18 +131,6 @@
         const fileListDiv = document.getElementById('fileList');
         const filesContainer = document.getElementById('filesContainer');
         const uploadBtn = document.getElementById('uploadBtn');
-        const debugDiv = document.getElementById('debugInfo');
-
-        function logDebug(message, data = null) {
-            debugDiv.style.display = 'block';
-            const time = new Date().toLocaleTimeString();
-            let text = `[${time}] ${message}\n`;
-            if (data) {
-                text += JSON.stringify(data, null, 2) + '\n';
-            }
-            debugDiv.innerText += text;
-            debugDiv.scrollTop = debugDiv.scrollHeight;
-        }
 
         folderInput.addEventListener('change', (e) => {
             const files = Array.from(e.target.files).filter(f => f.name.endsWith('.zip'));
@@ -150,7 +142,6 @@
             renderFileList();
             fileListDiv.style.display = 'block';
             uploadBtn.disabled = false;
-            logDebug(`已选择 ${selectedFiles.length} 个分片文件`, selectedFiles.map(f => f.name));
         });
 
         function renderFileList() {
@@ -183,35 +174,15 @@
             formData.append('is_adult', document.getElementById('isAdultCheckbox').checked ? 'yes' : 'no');
             formData.append('total_parts', selectedFiles.length);
 
-            logDebug('发送创建漫画请求...', { title: form.title.value, total_parts: selectedFiles.length });
-            
-            try {
-                const response = await fetch('/api/comics/create', {
-                    method: 'POST',
-                    headers: { 'X-Upload-Token': UPLOAD_TOKEN },
-                    body: formData
-                });
-                
-                logDebug(`创建漫画响应状态: ${response.status} ${response.statusText}`);
-                const responseText = await response.text();
-                logDebug(`响应内容: ${responseText.substring(0, 500)}${responseText.length > 500 ? '...' : ''}`);
-                
-                let data;
-                try {
-                    data = JSON.parse(responseText);
-                } catch (e) {
-                    throw new Error(`响应不是有效 JSON: ${responseText.substring(0, 200)}`);
-                }
-                
-                if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
-                if (!data.success) throw new Error(data.error || '未知错误');
-                
-                logDebug(`漫画创建成功，ID: ${data.id}`);
-                return data.id;
-            } catch (err) {
-                logDebug(`创建漫画失败: ${err.message}`);
-                throw err;
-            }
+            const response = await fetch('/api/comics/create', {
+                method: 'POST',
+                headers: { 'X-Upload-Token': UPLOAD_TOKEN },
+                body: formData
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+            if (!data.success) throw new Error(data.error || '未知错误');
+            return data.id;
         }
 
         async function uploadPart(comicId, partIndex, file) {
@@ -221,83 +192,39 @@
             formData.append('zipFile', file);
             formData.append('originalName', file.name);
 
-            logDebug(`上传分片 ${partIndex + 1}/${selectedFiles.length}: ${file.name}`);
-            
-            try {
-                const response = await fetch('/api/comics/upload-part', {
-                    method: 'POST',
-                    headers: { 'X-Upload-Token': UPLOAD_TOKEN },
-                    body: formData
-                });
-                
-                logDebug(`分片 ${partIndex + 1} 响应状态: ${response.status} ${response.statusText}`);
-                const responseText = await response.text();
-                logDebug(`分片 ${partIndex + 1} 响应内容: ${responseText.substring(0, 300)}`);
-                
-                let data;
-                try {
-                    data = JSON.parse(responseText);
-                } catch (e) {
-                    throw new Error(`响应不是有效 JSON: ${responseText.substring(0, 200)}`);
-                }
-                
-                if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
-                if (!data.success) throw new Error(data.error || '未知错误');
-                
-                logDebug(`分片 ${partIndex + 1} 上传成功`);
-                return data;
-            } catch (err) {
-                logDebug(`分片 ${partIndex + 1} 上传失败: ${err.message}`);
-                throw err;
-            }
+            const response = await fetch('/api/comics/upload-part', {
+                method: 'POST',
+                headers: { 'X-Upload-Token': UPLOAD_TOKEN },
+                body: formData
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+            if (!data.success) throw new Error(data.error || '未知错误');
         }
 
         async function finishUpload(comicId) {
             const form = document.getElementById('uploadForm');
-            const body = {
-                comicId,
-                total_pages: parseInt(form.total_pages.value),
-                total_parts: selectedFiles.length
-            };
-            
-            logDebug('发送完成上传请求...', body);
-            
-            try {
-                const response = await fetch('/api/comics/finish-upload', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Upload-Token': UPLOAD_TOKEN
-                    },
-                    body: JSON.stringify(body)
-                });
-                
-                logDebug(`完成上传响应状态: ${response.status} ${response.statusText}`);
-                const responseText = await response.text();
-                logDebug(`响应内容: ${responseText.substring(0, 500)}`);
-                
-                let data;
-                try {
-                    data = JSON.parse(responseText);
-                } catch (e) {
-                    throw new Error(`响应不是有效 JSON: ${responseText.substring(0, 200)}`);
-                }
-                
-                if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
-                if (!data.success) throw new Error(data.error || '未知错误');
-                
-                logDebug(`完成上传成功，infoUrl: ${data.infoUrl}`);
-                return data;
-            } catch (err) {
-                logDebug(`完成上传失败: ${err.message}`);
-                throw err;
-            }
+            const response = await fetch('/api/comics/finish-upload', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Upload-Token': UPLOAD_TOKEN
+                },
+                body: JSON.stringify({
+                    comicId,
+                    total_pages: parseInt(form.total_pages.value),
+                    total_parts: selectedFiles.length
+                })
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+            if (!data.success) throw new Error(data.error || '未知错误');
+            return data;
         }
 
         uploadBtn.addEventListener('click', async () => {
             const resultDiv = document.getElementById('uploadResult');
             resultDiv.innerHTML = '初始化...';
-            debugDiv.innerHTML = ''; // 清空调试信息
             uploadBtn.disabled = true;
 
             try {
