@@ -16,22 +16,17 @@ export async function onRequest(context) {
 async function handleGet(request, env, id) {
     const userId = request.headers.get('X-Auth-UserId');
     try {
-        const comic = await env.DB.prepare(
-            'SELECT * FROM comics WHERE id = ?'
-        ).bind(id).first();
+        const comic = await env.DB.prepare('SELECT * FROM comics WHERE id = ?').bind(id).first();
         if (!comic) {
             return Response.json({ success: false, error: '漫画不存在' }, { status: 404 });
         }
         comic.tags = JSON.parse(comic.tags || '[]');
 
-        // 检查成人内容权限
         if (comic.is_adult === 'yes') {
             if (!userId) {
                 return Response.json({ success: false, error: '此内容需要登录才能查看' }, { status: 403 });
             }
-            const user = await env.DB.prepare(
-                'SELECT adult_enabled, allow_adult FROM users WHERE id = ?'
-            ).bind(userId).first();
+            const user = await env.DB.prepare('SELECT adult_enabled, allow_adult FROM users WHERE id = ?').bind(userId).first();
             if (!user || user.adult_enabled !== 'yes' || user.allow_adult !== 'yes') {
                 return Response.json({ success: false, error: '您未获得查看高危内容的权限，或您已关闭显示' }, { status: 403 });
             }
@@ -44,7 +39,6 @@ async function handleGet(request, env, id) {
 }
 
 async function handleDelete(request, env, id) {
-    // 保持原有的删除逻辑不变
     const uploadToken = request.headers.get('X-Upload-Token');
     if (uploadToken !== env.ADMIN_UPLOAD_TOKEN) {
         return Response.json({ success: false, error: '无权限' }, { status: 403 });
@@ -56,13 +50,12 @@ async function handleDelete(request, env, id) {
     }
 
     try {
-        const comic = await env.DB.prepare(
-            'SELECT cover_url, zip_url, owner_role FROM comics WHERE id = ?'
-        ).bind(id).first();
+        const comic = await env.DB.prepare('SELECT * FROM comics WHERE id = ?').bind(id).first();
         if (!comic) {
             return Response.json({ success: false, error: '漫画不存在' }, { status: 404 });
         }
 
+        // 权限判断
         if (authRole === 'system') {
             // system 可删所有
         } else if (authRole === 'admin' && comic.owner_role !== 'system') {
@@ -71,32 +64,48 @@ async function handleDelete(request, env, id) {
             return Response.json({ success: false, error: '无权删除此漫画' }, { status: 403 });
         }
 
-        const coverPath = extractPathFromMirror(comic.cover_url);
-        const zipPath = extractPathFromMirror(comic.zip_url);
-        if (!coverPath || !zipPath) {
-            throw new Error('无法解析文件路径');
+        // 从 zip_url 中提取文件夹路径
+        const infoUrl = comic.zip_url;
+        const rawBase = `https://raw.githubusercontent.com/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/main/`;
+        if (!infoUrl.startsWith(rawBase)) {
+            throw new Error('无法解析漫画文件夹路径');
+        }
+        const folderPath = infoUrl.substring(rawBase.length).replace('/info.json', '');
+        if (!folderPath) {
+            throw new Error('文件夹路径无效');
         }
 
         const headers = {
             'Authorization': `token ${env.GITHUB_TOKEN}`,
             'Accept': 'application/vnd.github+json',
             'X-GitHub-Api-Version': '2022-11-28',
-            'Content-Type': 'application/json',
             'User-Agent': 'Manga-Site-Admin/1.0'
         };
         const branch = 'main';
 
-        async function getFileSha(path) {
+        // 递归获取文件夹下所有文件
+        async function getAllFilesInFolder(path) {
             const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${path}?ref=${branch}`;
             const res = await fetch(url, { headers });
             if (!res.ok) {
+                if (res.status === 404) return [];
                 const err = await res.text();
-                throw new Error(`获取文件信息失败: ${res.status} ${err}`);
+                throw new Error(`获取文件夹内容失败: ${res.status} ${err}`);
             }
-            const data = await res.json();
-            return data.sha;
+            const items = await res.json();
+            let files = [];
+            for (const item of items) {
+                if (item.type === 'file') {
+                    files.push(item);
+                } else if (item.type === 'dir') {
+                    const subFiles = await getAllFilesInFolder(item.path);
+                    files.push(...subFiles);
+                }
+            }
+            return files;
         }
 
+        // 删除单个文件
         async function deleteFile(path, sha) {
             const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${path}`;
             const body = {
@@ -115,11 +124,14 @@ async function handleDelete(request, env, id) {
             }
         }
 
-        const coverSha = await getFileSha(coverPath);
-        const zipSha = await getFileSha(zipPath);
-        await deleteFile(coverPath, coverSha);
-        await deleteFile(zipPath, zipSha);
+        // 获取所有文件
+        const files = await getAllFilesInFolder(folderPath);
+        // 删除所有文件
+        for (const file of files) {
+            await deleteFile(file.path, file.sha);
+        }
 
+        // 删除数据库记录
         await env.DB.prepare('DELETE FROM comics WHERE id = ?').bind(id).run();
 
         return Response.json({ success: true, message: '删除成功' });
@@ -127,13 +139,4 @@ async function handleDelete(request, env, id) {
         console.error('Delete error:', err);
         return Response.json({ success: false, error: err.message }, { status: 500 });
     }
-}
-
-function extractPathFromMirror(url) {
-    let rawPart = url;
-    if (url.includes('ghproxy.com')) {
-        rawPart = url.split('ghproxy.com/')[1];
-    }
-    const match = rawPart.match(/raw\.githubusercontent\.com\/[^/]+\/[^/]+\/[^/]+\/(.+)/);
-    return match ? match[1] : null;
 }
