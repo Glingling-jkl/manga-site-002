@@ -148,22 +148,6 @@
             width: 0%;
             transition: width 0.2s;
         }
-        .progress-fill.indeterminate {
-            width: 100% !important;
-            background: repeating-linear-gradient(
-                45deg,
-                #0070f3 0px,
-                #0070f3 10px,
-                #3399ff 10px,
-                #3399ff 20px
-            );
-            background-size: 200% 100%;
-            animation: move 2s linear infinite;
-        }
-        @keyframes move {
-            0% { background-position: 0 0; }
-            100% { background-position: 200% 0; }
-        }
         .thread-info {
             margin-top: 5px;
             font-size: 0.9rem;
@@ -202,8 +186,6 @@
         const zipUrl = urlParams.get('zip');
         const isOnline = !!zipUrl;
 
-        console.log('在线模式:', isOnline, 'ZIP URL:', zipUrl, 'ID:', comicId);
-
         const controls = document.getElementById('controls');
         const resetBtn = document.getElementById('reset-btn');
         const uploadArea = document.getElementById('upload-area');
@@ -213,7 +195,6 @@
         const progressFill = document.getElementById('progress-fill');
         const progressPercent = document.getElementById('progress-percent');
         const progressMessage = document.getElementById('progress-message');
-        const progressBar = document.getElementById('progress-bar');
         const threadInfo = document.getElementById('thread-info');
         let hideTimeout;
 
@@ -221,129 +202,85 @@
             resetBtn.style.display = 'none';
         }
 
-        // ---------- 分片下载函数（实时进度）----------
-        const CHUNK_COUNT = 12;
-
-        async function fetchWithChunks(url) {
-            // 先通过 HEAD 请求获取文件大小和 Range 支持
-            const headRes = await fetch(url, { method: 'HEAD', mode: 'cors' });
-            if (!headRes.ok) throw new Error(`HEAD 请求失败: ${headRes.status}`);
-
-            const contentLength = headRes.headers.get('content-length');
-            const acceptRanges = headRes.headers.get('accept-ranges');
-            
-            // 情况1：支持分片且有大小信息 -> 多线程下载
-            if (acceptRanges === 'bytes' && contentLength) {
-                threadInfo.innerText = `多线程 (${CHUNK_COUNT} 线程)`;
-                progressFill.classList.remove('indeterminate');
-                const total = parseInt(contentLength, 10);
-                const chunkSize = Math.ceil(total / CHUNK_COUNT);
-                let loaded = 0;
-
-                const chunkPromises = [];
-                for (let i = 0; i < CHUNK_COUNT; i++) {
-                    const start = i * chunkSize;
-                    const end = (i === CHUNK_COUNT - 1) ? total - 1 : Math.min(start + chunkSize - 1, total - 1);
-                    if (start > end) continue;
-
-                    const promise = (async () => {
-                        const res = await fetch(url, {
-                            mode: 'cors',
-                            headers: { 'Range': `bytes=${start}-${end}` }
-                        });
-                        if (!res.ok) throw new Error(`分片 ${i} 失败: ${res.status}`);
-
-                        const reader = res.body.getReader();
-                        const chunks = [];
-                        while (true) {
-                            const { done, value } = await reader.read();
-                            if (done) break;
-                            chunks.push(value);
-                            loaded += value.length;
-                            const percent = Math.min(100, Math.round((loaded / total) * 100));
-                            progressFill.style.width = percent + '%';
-                            progressPercent.innerText = percent + '%';
-                        }
-                        const totalLength = chunks.reduce((acc, val) => acc + val.length, 0);
-                        const merged = new Uint8Array(totalLength);
-                        let offset = 0;
-                        for (const chunk of chunks) {
-                            merged.set(new Uint8Array(chunk), offset);
-                            offset += chunk.length;
-                        }
-                        return merged;
-                    })();
-                    chunkPromises.push(promise);
+        // 加载单个 ZIP 并解压（边加载边显示图片）
+        async function loadZipFile(file) {
+            try {
+                const zip = await JSZip.loadAsync(file);
+                const imageFiles = Object.keys(zip.files)
+                    .filter(name => /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(name))
+                    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+                if (imageFiles.length === 0) {
+                    viewer.innerHTML += '<p>压缩包中没有图片</p><button class="retry-button" onclick="window.location.reload()">重新导入</button>';
+                    return;
                 }
-
-                const chunksData = await Promise.all(chunkPromises);
-                return new Blob(chunksData, { type: 'application/zip' });
+                for (let name of imageFiles) {
+                    const blob = await zip.files[name].async('blob');
+                    const url = URL.createObjectURL(blob);
+                    const img = document.createElement('img');
+                    img.src = url;
+                    img.className = 'page-img';
+                    img.alt = name;
+                    viewer.appendChild(img);
+                }
+            } catch (err) {
+                viewer.innerHTML += `<p style="color:red;">解压失败：${err.message}</p>`;
             }
-            
-            // 情况2：不支持分片，但有大小信息 -> 单线程下载，显示正常进度条
-            if (contentLength) {
-                threadInfo.innerText = '单线程下载';
-                progressFill.classList.remove('indeterminate');
-                const total = parseInt(contentLength, 10);
-                let loaded = 0;
-
-                const res = await fetch(url, { mode: 'cors' });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-                const reader = res.body.getReader();
-                const chunks = [];
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    chunks.push(value);
-                    loaded += value.length;
-                    const percent = Math.min(100, Math.round((loaded / total) * 100));
-                    progressFill.style.width = percent + '%';
-                    progressPercent.innerText = percent + '%';
-                }
-                const totalLength = chunks.reduce((acc, val) => acc + val.length, 0);
-                const merged = new Uint8Array(totalLength);
-                let offset = 0;
-                for (const chunk of chunks) {
-                    merged.set(new Uint8Array(chunk), offset);
-                    offset += chunk.length;
-                }
-                return new Blob([merged], { type: 'application/zip' });
-            }
-
-            // 情况3：没有大小信息 -> 单线程下载，条纹动画
-            threadInfo.innerText = '单线程下载（无进度）';
-            progressFill.classList.add('indeterminate');
-            progressFill.style.width = '100%';
-            progressPercent.innerText = '--%';
-            progressMessage.innerText = '下载中...';
-
-            const res = await fetch(url, { mode: 'cors' });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const blob = await res.blob();
-            progressFill.classList.remove('indeterminate');
-            progressFill.style.width = '0%';
-            return blob;
         }
 
-        // ---------- 在线加载 ----------
+        // 下载单个分片
+        async function downloadPart(url, partIndex) {
+            const response = await fetch(url, { mode: 'cors' });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const blob = await response.blob();
+            const file = new File([blob], `part_${partIndex}.zip`, { type: 'application/zip' });
+            await loadZipFile(file);
+        }
+
+        // 主加载逻辑
         if (zipUrl) {
             (async () => {
                 uploadArea.style.display = 'none';
                 progressContainer.style.display = 'block';
                 progressFill.style.width = '0%';
                 progressPercent.innerText = '0%';
-                progressFill.classList.remove('indeterminate');
-                progressBar.style.display = 'block';
-                progressPercent.style.display = 'block';
-                progressMessage.innerText = '下载中...';
+                progressMessage.innerText = '加载漫画信息...';
                 threadInfo.innerText = '';
 
                 try {
-                    const blob = await fetchWithChunks(zipUrl);
+                    // 尝试获取 info.json（分片模式标志）
+                    const infoUrl = zipUrl.replace(/\/[^/]+$/, '/info.json');
+                    const infoRes = await fetch(infoUrl, { mode: 'cors' });
+                    
+                    if (infoRes.ok) {
+                        // 分片模式
+                        const info = await infoRes.json();
+                        const baseUrl = zipUrl.substring(0, zipUrl.lastIndexOf('/'));
+                        threadInfo.innerText = `分片模式 (${info.total_parts} 个分片)`;
+                        progressMessage.innerText = '下载中...';
+                        
+                        viewer.innerHTML = ''; // 清空，准备显示图片
+                        for (let i = 0; i < info.parts.length; i++) {
+                            const partUrl = `${baseUrl}/${info.parts[i]}`;
+                            await downloadPart(partUrl, i + 1);
+                            const percent = Math.round(((i + 1) / info.total_parts) * 100);
+                            progressFill.style.width = percent + '%';
+                            progressPercent.innerText = percent + '%';
+                        }
+                    } else {
+                        // 单文件模式（旧漫画）
+                        threadInfo.innerText = '单文件模式';
+                        progressMessage.innerText = '下载中...';
+                        viewer.innerHTML = '';
+                        const response = await fetch(zipUrl, { mode: 'cors' });
+                        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                        const blob = await response.blob();
+                        const file = new File([blob], 'comic.zip', { type: 'application/zip' });
+                        await loadZipFile(file);
+                        progressFill.style.width = '100%';
+                        progressPercent.innerText = '100%';
+                    }
+                    
                     progressContainer.style.display = 'none';
-                    const file = new File([blob], 'comic.zip', { type: 'application/zip' });
-                    await loadZipFile(file);
                 } catch (err) {
                     console.error('加载失败:', err);
                     progressContainer.style.display = 'none';
@@ -356,7 +293,7 @@
             })();
         }
 
-        // ---------- 控制栏显示/隐藏 ----------
+        // ---------- 以下为控制栏、返回按钮、本地上传等原有功能 ----------
         function showControls() {
             controls.classList.add('visible');
             clearTimeout(hideTimeout);
@@ -372,7 +309,6 @@
 
         showControls();
 
-        // ---------- 返回按钮（短按回详情，长按回首页）----------
         const backBtn = document.getElementById('back-btn');
         let timer;
         let longPressed = false;
@@ -415,7 +351,6 @@
             longPressed = false;
         });
 
-        // ---------- 重置并导入按钮（仅本地模式）----------
         resetBtn.addEventListener('click', () => {
             if (isOnline) return;
             resetBtn.classList.remove('visible');
@@ -425,7 +360,6 @@
             uploadInput.click();
         });
 
-        // ---------- 滚动检测（仅本地模式）----------
         function checkScroll() {
             if (isOnline) return;
             if (uploadArea.style.display === 'none' && viewer.children.length > 0) {
@@ -443,7 +377,6 @@
         }
         window.addEventListener('scroll', checkScroll);
 
-        // ---------- 阅读进度保存 ----------
         const savedScroll = localStorage.getItem(`progress_${comicId}`);
         if (savedScroll) {
             window.addEventListener('load', () => {
@@ -452,6 +385,7 @@
                 }, 100);
             });
         }
+
         let scrollTimer;
         window.addEventListener('scroll', () => {
             clearTimeout(scrollTimer);
@@ -460,46 +394,13 @@
             }, 200);
         });
 
-        // ---------- 本地上传处理 ----------
         uploadInput.addEventListener('change', async (event) => {
             const file = event.target.files[0];
             if (!file) return;
             uploadArea.style.display = 'none';
+            viewer.innerHTML = '';
             await loadZipFile(file);
         });
-
-        // ---------- 核心解压函数 ----------
-        async function loadZipFile(file) {
-            viewer.innerHTML = '<p style="color:white; padding:20px;">解压中...</p>';
-            try {
-                const zip = await JSZip.loadAsync(file);
-                const imageFiles = Object.keys(zip.files)
-                    .filter(name => /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(name))
-                    .sort((a, b) => a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'}));
-                if (imageFiles.length === 0) {
-                    viewer.innerHTML = '<p>压缩包中没有图片</p><button class="retry-button" onclick="window.location.reload()">重新导入</button>';
-                    return;
-                }
-                viewer.innerHTML = '';
-                for (let name of imageFiles) {
-                    const blob = await zip.files[name].async('blob');
-                    const url = URL.createObjectURL(blob);
-                    const img = document.createElement('img');
-                    img.src = url;
-                    img.className = 'page-img';
-                    img.alt = name;
-                    viewer.appendChild(img);
-                }
-                const saved = localStorage.getItem(`progress_${comicId}`);
-                if (saved) {
-                    setTimeout(() => {
-                        window.scrollTo(0, parseInt(saved));
-                    }, 200);
-                }
-            } catch (err) {
-                viewer.innerHTML = `<p style="color:red;">解压失败：${err.message}</p>`;
-            }
-        }
     </script>
 </body>
-</html>
+        </html>
