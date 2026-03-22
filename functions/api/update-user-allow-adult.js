@@ -1,25 +1,20 @@
-// functions/api/update-user-allow-adult.js
-export async function onRequestPatch(context) {
+// functions/api/get-user-allow-adult.js
+export async function onRequestGet(context) {
     const { request, env } = context;
-
-    const authRole = request.headers.get('X-Auth-Role');
-    if (authRole !== 'system') {
-        return Response.json({ success: false, error: '权限不足' }, { status: 403 });
+    const userId = request.headers.get('X-Auth-UserId');
+    if (!userId) {
+        return Response.json({ success: false, error: '未登录' }, { status: 401 });
     }
 
-    const currentUserId = request.headers.get('X-Auth-UserId');
     try {
-        const { userId, allowAdult } = await request.json();
-        if (!userId || !['yes', 'no'].includes(allowAdult)) {
-            return Response.json({ error: '参数错误' }, { status: 400 });
+        const user = await env.DB.prepare(
+            'SELECT adult_enabled, allow_adult FROM users WHERE id = ?'
+        ).bind(userId).first();
+        if (!user) {
+            return Response.json({ error: '用户不存在' }, { status: 404 });
         }
-        // 不能修改自己的权限
-        if (currentUserId == userId) {
-            return Response.json({ error: '不能修改自己的权限' }, { status: 403 });
-        }
-        await env.DB.prepare('UPDATE users SET allow_adult = ? WHERE id = ?').bind(allowAdult, userId).run();
-        return Response.json({ success: true, message: '更新成功' });
+        return Response.json({ success: true, adult_enabled: user.adult_enabled, allow_adult: user.allow_adult });
     } catch (err) {
-        return Response.json({ error: err.message }, { status: 500 });
+        return Response.json({ error: '服务器错误' }, { status: 500 });
     }
 }
