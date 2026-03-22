@@ -10,12 +10,12 @@ export async function onRequestGet(context) {
     try {
         if (authRole === 'system') {
             const { results } = await env.DB.prepare(
-                'SELECT id, username, role, allow_adult, created_at FROM users WHERE role != ? ORDER BY created_at DESC'
+                'SELECT id, username, role, adult_enabled, allow_adult, created_at FROM users WHERE role != ? ORDER BY created_at DESC'
             ).bind('system').all();
             return Response.json({ success: true, data: results });
         } else if (authRole === 'admin') {
             const { results } = await env.DB.prepare(
-                'SELECT id, username, role, allow_adult, created_at FROM users WHERE role = ? ORDER BY created_at DESC'
+                'SELECT id, username, role, adult_enabled, allow_adult, created_at FROM users WHERE role = ? ORDER BY created_at DESC'
             ).bind('user').all();
             return Response.json({ success: true, data: results });
         } else {
