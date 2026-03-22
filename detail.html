@@ -123,6 +123,11 @@
         .comment-context-menu li.disabled:hover {
             background: none;
         }
+        .adult-warning {
+            color: #ff6b6b;
+            margin-top: 10px;
+            font-size: 0.9rem;
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
@@ -226,6 +231,10 @@
 
         function renderComic(comic) {
             const tags = comic.tags && Array.isArray(comic.tags) ? comic.tags.join(' · ') : '';
+            let warningHtml = '';
+            if (comic.is_adult === 'yes') {
+                warningHtml = '<div class="adult-warning">⚠️ 不安全性内容</div>';
+            }
             const html = `
                 <img id="cover-img" data-src="${comic.cover_url}" alt="${comic.title}">
                 <h1>${comic.title}</h1>
@@ -236,6 +245,7 @@
                 <p>上传时间：${new Date(comic.uploaded_at).toLocaleDateString()}</p>
                 <p>${comic.description || ''}</p>
                 <button onclick="startReading('${comic.zip_url}')">📖 开始阅读</button>
+                ${warningHtml}
             `;
             document.getElementById('comic-detail').innerHTML = html;
 
