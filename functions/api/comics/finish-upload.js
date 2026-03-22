@@ -11,16 +11,17 @@ export async function onRequestPost(context) {
         const { comicId, total_pages, total_parts } = await request.json();
 
         const comic = await env.DB.prepare(
-            'SELECT title, author, chapters, pages, uploaded_at FROM comics WHERE id = ?'
+            'SELECT title, author, chapters, uploaded_at FROM comics WHERE id = ?'
         ).bind(comicId).first();
         if (!comic) {
             return Response.json({ success: false, error: '漫画不存在' }, { status: 404 });
         }
 
         const timestamp = new Date(comic.uploaded_at).getTime() || Date.now();
-        const folderName = `${timestamp}_${comic.title.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_')}`;
+        const safeTitle = comic.title.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_');
+        // 关键修改：文件夹路径为 zip-s/时间_漫画名
+        const folderName = `zip-s/${timestamp}_${safeTitle}`;
 
-        // 生成分片列表
         const parts = [];
         for (let i = 1; i <= total_parts; i++) {
             parts.push(`part_${i}.zip`);
@@ -46,8 +47,8 @@ export async function onRequestPost(context) {
         };
         const branch = 'main';
 
-        const fileName = `${folderName}/info.json`;
-        const res = await fetch(`https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${fileName}`, {
+        const infoFileName = `${folderName}/info.json`;
+        const res = await fetch(`https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${infoFileName}`, {
             method: 'PUT',
             headers,
             body: JSON.stringify({
@@ -62,9 +63,8 @@ export async function onRequestPost(context) {
             throw new Error(`生成 info.json 失败: ${res.status} ${errorText}`);
         }
 
-        // 更新数据库中的 zip_url 为 info.json 的链接
         const rawBase = `https://raw.githubusercontent.com/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/${branch}`;
-        const infoUrl = `${rawBase}/${fileName}`;
+        const infoUrl = `${rawBase}/${infoFileName}`;
         await env.DB.prepare(
             'UPDATE comics SET zip_url = ? WHERE id = ?'
         ).bind(infoUrl, comicId).run();
