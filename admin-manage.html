@@ -47,21 +47,25 @@
     </div>
 
     <script>
-        // 登录和权限检查
         if (!localStorage.getItem('loggedIn')) {
             window.location.replace('login.html?needlogin=1');
         }
         const currentUserRole = localStorage.getItem('userRole') || '';
         const currentUser = localStorage.getItem('currentUser') || '';
         if (currentUserRole !== 'system' && currentUserRole !== 'admin') {
-            window.location.replace('index.html'); // 普通用户跳转
+            window.location.replace('index.html');
         }
 
-        const UPLOAD_TOKEN = 'manga-upload-secret-2025'; // 与后端环境变量一致
+        const UPLOAD_TOKEN = 'manga-upload-secret-2025';
 
         async function loadComics() {
             try {
-                const res = await fetch('/api/comics');
+                const res = await fetch('/api/comics', {
+                    headers: {
+                        'X-Auth-UserId': localStorage.getItem('currentUserId'),
+                        'X-Auth-Role': currentUserRole
+                    }
+                });
                 const data = await res.json();
                 if (data.success) {
                     renderComics(data.data);
@@ -82,7 +86,6 @@
             let html = '';
             for (let c of comics) {
                 let actionButton = '';
-                // 判断权限：system 可删所有；admin 可删非 system 的漫画
                 if (currentUserRole === 'system' || (currentUserRole === 'admin' && c.owner_role !== 'system')) {
                     actionButton = `<button class="delete-btn" onclick="deleteComic(${c.id})">删除</button>`;
                 } else {
@@ -117,7 +120,7 @@
                 const data = await res.json();
                 if (data.success) {
                     resultDiv.innerHTML = '<p style="color:green;">删除成功</p>';
-                    loadComics(); // 刷新列表
+                    loadComics();
                 } else {
                     resultDiv.innerHTML = `<p style="color:red;">删除失败: ${data.error}</p>`;
                 }
