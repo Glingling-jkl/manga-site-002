@@ -1,6 +1,4 @@
 // functions/api/comics/upload-part.js
-import { sha256 } from '../../utils/sha256';
-
 export async function onRequestPost(context) {
     const { request, env } = context;
 
