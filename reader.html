@@ -202,7 +202,7 @@
             resetBtn.style.display = 'none';
         }
 
-        // 加载单个 ZIP 并解压（边加载边显示图片）
+        // 加载单个 ZIP 并解压
         async function loadZipFile(file) {
             try {
                 const zip = await JSZip.loadAsync(file);
@@ -229,8 +229,9 @@
 
         // 下载单个分片
         async function downloadPart(url, partIndex) {
+            console.log(`正在下载分片 ${partIndex}: ${url}`);
             const response = await fetch(url, { mode: 'cors' });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            if (!response.ok) throw new Error(`HTTP ${response.status} (${url})`);
             const blob = await response.blob();
             const file = new File([blob], `part_${partIndex}.zip`, { type: 'application/zip' });
             await loadZipFile(file);
@@ -247,46 +248,35 @@
                 threadInfo.innerText = '';
 
                 try {
-                    // 尝试获取 info.json（分片模式标志）
-                    const infoUrl = zipUrl.replace(/\/[^/]+$/, '/info.json');
+                    // info.json 的 URL 就是 zipUrl（数据库存的是 info.json 的链接）
+                    const infoUrl = zipUrl;
+                    console.log('加载 info.json:', infoUrl);
                     const infoRes = await fetch(infoUrl, { mode: 'cors' });
+                    if (!infoRes.ok) throw new Error(`无法加载 info.json (${infoRes.status})`);
+
+                    const info = await infoRes.json();
+                    // 获取 info.json 所在的目录（即 zip-s/时间_漫画名）
+                    const baseUrl = infoUrl.substring(0, infoUrl.lastIndexOf('/'));
+                    threadInfo.innerText = `分片模式 (${info.total_parts} 个分片)`;
+                    progressMessage.innerText = '下载中...';
                     
-                    if (infoRes.ok) {
-                        // 分片模式
-                        const info = await infoRes.json();
-                        const baseUrl = zipUrl.substring(0, zipUrl.lastIndexOf('/'));
-                        threadInfo.innerText = `分片模式 (${info.total_parts} 个分片)`;
-                        progressMessage.innerText = '下载中...';
-                        
-                        viewer.innerHTML = ''; // 清空，准备显示图片
-                        for (let i = 0; i < info.parts.length; i++) {
-                            const partUrl = `${baseUrl}/parts/${info.parts[i]}`; // 添加 parts/ 前缀
-                            await downloadPart(partUrl, i + 1);
-                            const percent = Math.round(((i + 1) / info.total_parts) * 100);
-                            progressFill.style.width = percent + '%';
-                            progressPercent.innerText = percent + '%';
-                        }
-                    } else {
-                        // 单文件模式（旧漫画）
-                        threadInfo.innerText = '单文件模式';
-                        progressMessage.innerText = '下载中...';
-                        viewer.innerHTML = '';
-                        const response = await fetch(zipUrl, { mode: 'cors' });
-                        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                        const blob = await response.blob();
-                        const file = new File([blob], 'comic.zip', { type: 'application/zip' });
-                        await loadZipFile(file);
-                        progressFill.style.width = '100%';
-                        progressPercent.innerText = '100%';
+                    viewer.innerHTML = '';
+                    for (let i = 0; i < info.parts.length; i++) {
+                        // 分片 URL 为 目录/zips/分片文件名
+                        const partUrl = `${baseUrl}/zips/${info.parts[i]}`;
+                        console.log(`请求分片 ${i+1}: ${partUrl}`);
+                        await downloadPart(partUrl, i + 1);
+                        const percent = Math.round(((i + 1) / info.total_parts) * 100);
+                        progressFill.style.width = percent + '%';
+                        progressPercent.innerText = percent + '%';
                     }
-                    
                     progressContainer.style.display = 'none';
                 } catch (err) {
                     console.error('加载失败:', err);
                     progressContainer.style.display = 'none';
                     viewer.innerHTML = `
                         <p style="color:red;">加载失败：${err.message}</p>
-                        <p style="color:#ccc; font-size:0.9rem;">尝试直接打开链接：<a href="${zipUrl}" target="_blank" style="color:#ffb6c1;">${zipUrl}</a></p>
+                        <p style="color:#ccc; font-size:0.9rem;">请检查浏览器控制台（F12）查看详细请求URL。</p>
                         <button class="retry-button" onclick="window.location.reload()">重试</button>
                     `;
                 }
