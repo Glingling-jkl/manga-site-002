@@ -3,19 +3,26 @@ export async function onRequestGet(context) {
     const { request, env } = context;
     const url = new URL(request.url);
     const userId = request.headers.get('X-Auth-UserId');
+    const userRole = request.headers.get('X-Auth-Role');
     const search = url.searchParams.get('search') || '';
     const page = parseInt(url.searchParams.get('page') || '1');
     const limit = parseInt(url.searchParams.get('limit') || '20');
     const offset = (page - 1) * limit;
 
-    let showAdult = false; // 默认不显示成人内容
-    if (userId) {
+    let showAdult = true; // 默认允许
+    // 如果用户未登录或不是管理员，则根据权限过滤
+    if (userId && userRole !== 'system' && userRole !== 'admin') {
         const user = await env.DB.prepare(
             'SELECT adult_enabled, allow_adult FROM users WHERE id = ?'
         ).bind(userId).first();
         if (user && user.adult_enabled === 'yes' && user.allow_adult === 'yes') {
             showAdult = true;
+        } else {
+            showAdult = false;
         }
+    } else if (!userId) {
+        // 未登录用户只能看到非成人内容
+        showAdult = false;
     }
 
     let query = 'SELECT * FROM comics';
