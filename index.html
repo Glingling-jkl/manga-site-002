@@ -177,8 +177,6 @@
         /* 主菜单（向上弹出） */
         .main-menu {
             position: fixed;
-            bottom: 100px;
-            right: 30px;
             background: white;
             border: 1px solid #ccc;
             border-radius: 8px;
@@ -273,7 +271,7 @@
         <ul>
             <li id="changePasswordItem">🔑 修改密码</li>
             <li id="changeSecondFactorItem">🔐 修改二密</li>
-            <li id="toggleAdultItem">⚠️ 安全内容: <span id="adultStatus"></span></li>
+            <li id="toggleAdultItem" style="display:none;">⚠️ 安全内容: <span id="adultStatus"></span></li>
         </ul>
     </div>
 
@@ -321,7 +319,7 @@
         })();
 
         // ---------- 页面初始化 ----------
-        function initPage() {
+        async function initPage() {
             const isLoggedIn = localStorage.getItem('loggedIn') === 'true';
             const currentUser = localStorage.getItem('currentUser') || '';
             const userRole = localStorage.getItem('userRole') || '';
@@ -338,11 +336,11 @@
                 userHtml += `<button onclick="logout()" style="width:auto; padding:8px 20px; margin-top:10px;">退出登录</button>`;
                 userArea.innerHTML = userHtml;
                 document.getElementById('comic-list-area').style.display = 'block';
-                loadComics();
-                menuBtn.style.display = 'flex'; // 显示菜单按钮
+                await loadComics();
+                menuBtn.style.display = 'flex';
 
-                // 加载用户安全内容状态
-                loadAdultStatus();
+                // 获取用户权限和偏好
+                await loadUserAdultStatus();
             } else {
                 userArea.innerHTML = `<p>您还未登录，<a href="login.html" style="color:#0070f3;">点击登录</a> 可查看在线漫画。</p>`;
                 menuBtn.style.display = 'none';
@@ -351,13 +349,10 @@
             // 菜单按钮点击事件
             menuBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                // 关闭子菜单
                 subMenu.style.display = 'none';
-                // 切换主菜单显示
                 if (mainMenu.style.display === 'block') {
                     mainMenu.style.display = 'none';
                 } else {
-                    // 计算位置：固定在按钮上方
                     const btnRect = menuBtn.getBoundingClientRect();
                     mainMenu.style.bottom = (window.innerHeight - btnRect.top + 10) + 'px';
                     mainMenu.style.right = (window.innerWidth - btnRect.right) + 'px';
@@ -365,7 +360,6 @@
                 }
             });
 
-            // 上传漫画菜单项
             document.getElementById('uploadMenuItem').addEventListener('click', (e) => {
                 e.stopPropagation();
                 if (userRole === 'system' || userRole === 'admin') {
@@ -376,19 +370,15 @@
                 closeAllMenus();
             });
 
-            // 小设置菜单项
             document.getElementById('settingsMenuItem').addEventListener('click', (e) => {
                 e.stopPropagation();
-                // 关闭主菜单，显示子菜单
                 mainMenu.style.display = 'none';
-                // 计算子菜单位置（向左弹出）
                 const btnRect = menuBtn.getBoundingClientRect();
                 subMenu.style.bottom = (window.innerHeight - btnRect.top + 10) + 'px';
-                subMenu.style.right = (btnRect.left - 10) + 'px'; // 向左偏移
+                subMenu.style.right = (btnRect.left - 10) + 'px';
                 subMenu.style.display = 'block';
             });
 
-            // 点击其他地方关闭所有菜单
             document.addEventListener('click', closeAllMenus);
             document.addEventListener('contextmenu', closeAllMenus);
 
@@ -461,7 +451,7 @@
                 closeAllMenus();
             });
 
-            // 切换安全内容
+            // 切换安全内容偏好
             document.getElementById('toggleAdultItem').addEventListener('click', async () => {
                 try {
                     const res = await fetch('/api/toggle-allow-adult-self', {
@@ -472,8 +462,8 @@
                     });
                     const data = await res.json();
                     if (res.ok && data.success) {
-                        alert(`已切换为${data.newStatus === 'yes' ? '允许' : '禁止'}高危内容`);
-                        loadAdultStatus(); // 刷新显示
+                        alert(`已切换为${data.newStatus === 'yes' ? '允许' : '禁止'}显示高危内容`);
+                        await loadUserAdultStatus();
                     } else {
                         alert('操作失败: ' + data.error);
                     }
@@ -484,19 +474,24 @@
             });
         }
 
-        async function loadAdultStatus() {
+        async function loadUserAdultStatus() {
             try {
                 const res = await fetch('/api/get-user-allow-adult', {
                     headers: { 'X-Auth-UserId': localStorage.getItem('currentUserId') }
                 });
                 const data = await res.json();
                 if (data.success) {
-                    const statusSpan = document.getElementById('adultStatus');
-                    statusSpan.innerText = data.allow_adult === 'yes' ? '允许' : '禁止';
-                    // 如果用户没有 allow_adult 字段（旧用户），则不显示该项？默认都有
+                    const toggleItem = document.getElementById('toggleAdultItem');
+                    if (data.adult_enabled === 'yes') {
+                        toggleItem.style.display = 'block';
+                        const statusSpan = document.getElementById('adultStatus');
+                        statusSpan.innerText = data.allow_adult === 'yes' ? '允许' : '禁止';
+                    } else {
+                        toggleItem.style.display = 'none';
+                    }
                 }
             } catch (err) {
-                console.error('加载安全内容状态失败', err);
+                console.error('加载成人内容状态失败', err);
             }
         }
 
