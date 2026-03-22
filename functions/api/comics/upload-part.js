@@ -22,11 +22,11 @@ export async function onRequestPost(context) {
             return Response.json({ success: false, error: '漫画不存在' }, { status: 404 });
         }
 
-        // 生成文件夹名
         const timestamp = new Date(comic.uploaded_at).getTime() || Date.now();
-        const folderName = `${timestamp}_${comic.title.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_')}`;
-        // 关键：将分片保存到 parts 子目录下
-        const fileName = `${folderName}/parts/${originalName}`;
+        const safeTitle = comic.title.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_');
+        // 关键修改：文件夹路径为 zip-s/时间_漫画名
+        const folderName = `zip-s/${timestamp}_${safeTitle}`;
+        const fileName = `${folderName}/zips/${originalName}`;
 
         // 转换为 Base64
         const arrayBuffer = await zipFile.arrayBuffer();
