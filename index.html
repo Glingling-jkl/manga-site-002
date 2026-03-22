@@ -200,7 +200,7 @@
             background: #f0f0f0;
         }
 
-        /* 子菜单（智能定位） */
+        /* 子菜单（向左弹出） */
         .sub-menu {
             position: fixed;
             background: white;
@@ -262,11 +262,12 @@
     <div id="mainMenu" class="main-menu">
         <ul>
             <li id="uploadMenuItem">📤 上传漫画</li>
+            <li id="manageComicsMenuItem">📋 管理漫画</li>
             <li id="settingsMenuItem">⚙️ 小设置</li>
         </ul>
     </div>
 
-    <!-- 子菜单（智能定位） -->
+    <!-- 子菜单（向左弹出） -->
     <div id="subMenu" class="sub-menu">
         <ul>
             <li id="changePasswordItem">🔑 修改密码</li>
@@ -360,6 +361,7 @@
                 }
             });
 
+            // 上传漫画菜单项（仅管理员）
             document.getElementById('uploadMenuItem').addEventListener('click', (e) => {
                 e.stopPropagation();
                 if (userRole === 'system' || userRole === 'admin') {
@@ -370,38 +372,24 @@
                 closeAllMenus();
             });
 
-            // 智能定位子菜单
+            // 管理漫画菜单项（仅管理员）
+            document.getElementById('manageComicsMenuItem').addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (userRole === 'system' || userRole === 'admin') {
+                    window.location.href = 'admin-manage.html';
+                } else {
+                    alert('无权限管理漫画');
+                }
+                closeAllMenus();
+            });
+
             document.getElementById('settingsMenuItem').addEventListener('click', (e) => {
                 e.stopPropagation();
                 mainMenu.style.display = 'none';
-
-                // 临时显示子菜单以获取尺寸
-                subMenu.style.display = 'block';
-                subMenu.style.visibility = 'hidden';
-                const menuWidth = subMenu.offsetWidth;
-                const menuHeight = subMenu.offsetHeight;
-                subMenu.style.visibility = 'visible';
-
                 const btnRect = menuBtn.getBoundingClientRect();
-                const winWidth = window.innerWidth;
-                const winHeight = window.innerHeight;
-
-                // 计算左位置：按钮左侧偏移10px，并确保不超出左边界
-                let left = btnRect.left - menuWidth - 10;
-                if (left < 10) left = 10;
-                // 如果左侧空间不足，则尝试显示在按钮右侧（但用户要求左侧，这里仅保证不超出）
-                // 如果需要可以添加右侧逻辑，但优先左侧
-                subMenu.style.left = left + 'px';
-                subMenu.style.right = 'auto';
-
-                // 计算上位置：默认与按钮顶部对齐，并确保不超出上下边界
-                let top = btnRect.top - 10;
-                if (top + menuHeight > winHeight) {
-                    top = winHeight - menuHeight - 10;
-                }
-                if (top < 10) top = 10;
-                subMenu.style.top = top + 'px';
-
+                subMenu.style.bottom = (window.innerHeight - btnRect.top + 10) + 'px';
+                // 向左偏移150px，避免被屏幕遮挡
+                subMenu.style.right = (btnRect.left - 150) + 'px';
                 subMenu.style.display = 'block';
             });
 
