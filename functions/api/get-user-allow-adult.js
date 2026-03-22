@@ -7,11 +7,13 @@ export async function onRequestGet(context) {
     }
 
     try {
-        const user = await env.DB.prepare('SELECT allow_adult FROM users WHERE id = ?').bind(userId).first();
+        const user = await env.DB.prepare(
+            'SELECT adult_enabled, allow_adult FROM users WHERE id = ?'
+        ).bind(userId).first();
         if (!user) {
             return Response.json({ error: '用户不存在' }, { status: 404 });
         }
-        return Response.json({ success: true, allow_adult: user.allow_adult });
+        return Response.json({ success: true, adult_enabled: user.adult_enabled, allow_adult: user.allow_adult });
     } catch (err) {
         return Response.json({ error: '服务器错误' }, { status: 500 });
     }
