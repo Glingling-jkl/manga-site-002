@@ -14,7 +14,7 @@ export async function onRequestPost(context) {
         const zipFile = formData.get('zipFile');
         const originalName = formData.get('originalName') || `part_${partIndex + 1}.zip`;
 
-        // 获取漫画信息（用于文件夹名）
+        // 获取漫画信息
         const comic = await env.DB.prepare(
             'SELECT title, uploaded_at FROM comics WHERE id = ?'
         ).bind(comicId).first();
@@ -22,9 +22,10 @@ export async function onRequestPost(context) {
             return Response.json({ success: false, error: '漫画不存在' }, { status: 404 });
         }
 
-        // 生成唯一文件夹名（时间戳_标题）
+        // 生成文件夹名
         const timestamp = new Date(comic.uploaded_at).getTime() || Date.now();
         const folderName = `${timestamp}_${comic.title.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_')}`;
+        // 关键：将分片保存到 parts 子目录下
         const fileName = `${folderName}/parts/${originalName}`;
 
         // 转换为 Base64
