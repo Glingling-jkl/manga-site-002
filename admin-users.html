@@ -18,6 +18,7 @@
             border-collapse: collapse;
             margin-top: 20px;
             font-size: 0.85rem;
+            min-width: 500px; /* 增加最小宽度，防止过窄 */
         }
         th, td {
             padding: 8px 6px;
@@ -28,7 +29,7 @@
         .action-buttons {
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 2px; /* 减小上下间隔 */
         }
         .action-btn {
             padding: 4px 8px;
@@ -50,25 +51,35 @@
             background: #ff9800;
             color: white;
         }
-        /* 角色标签样式 */
+        /* 角色标签样式（正方形小矩形） */
         .role-badge {
             display: inline-block;
-            padding: 2px 10px;
-            border-radius: 20px;
+            padding: 2px 8px;
+            border-radius: 4px; /* 小矩形，非圆形 */
             font-size: 0.8rem;
             font-weight: 500;
             text-align: center;
-            color: white;
         }
         .role-badge.user {
             background: #6c757d;
+            color: white;
         }
         .role-badge.admin {
             background: #ffc107;
-            color: #212529;
+            color: white; /* 白色文字 */
         }
         .role-badge.system {
             background: #dc3545;
+            color: white;
+        }
+        /* 读取权限样式 */
+        .read-permit-normal {
+            color: #ffc107;
+            font-weight: 500;
+        }
+        .read-permit-special {
+            color: #f44336;
+            font-weight: 500;
         }
         /* 表格容器横向滚动 */
         .table-wrapper {
@@ -101,17 +112,16 @@
             <table id="userTable">
                 <thead>
                     <tr>
-                        <th>ID</th>
-                        <th>用户名</th>
+                        <th>用户</th>
                         <th>用户组</th>
-                        <th>成人权限</th>
+                        <th>读取权限</th>
                         <th>注册时间</th>
                         <th>操作</th>
                     </thead>
                 <tbody id="userListBody">
-                     <td colspan="6">加载中...</td>
+                     <td colspan="5">加载中...</td>
                 </tbody>
-            </table>
+             </table>
         </div>
         <div id="manageResult" style="margin-top: 20px;"></div>
     </div>
@@ -167,31 +177,31 @@
 
         async function loadUsers() {
             const tbody = document.getElementById('userListBody');
-            tbody.innerHTML = '<tr><td colspan="6">加载中...</td></tr>';
+            tbody.innerHTML = ' <td colspan="5">加载中...</td>';
             try {
                 const res = await fetch('/api/get-users', {
                     headers: { 'X-Auth-Role': currentUserRole }
                 });
                 if (!res.ok) {
                     const text = await res.text();
-                    tbody.innerHTML = `<tr><td colspan="6">HTTP错误 ${res.status}: ${text}</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="5">HTTP错误 ${res.status}: ${text}</td></tr>`;
                     return;
                 }
                 const data = await res.json();
                 if (data.success) {
                     renderUsers(data.data);
                 } else {
-                    tbody.innerHTML = `<tr><td colspan="6">加载失败: ${data.error}</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="5">加载失败: ${data.error}</td></tr>`;
                 }
             } catch (err) {
-                tbody.innerHTML = `<tr><td colspan="6">网络错误: ${err.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="5">网络错误: ${err.message}</td></tr>`;
             }
         }
 
         function renderUsers(users) {
             const tbody = document.getElementById('userListBody');
             if (users.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6">暂无用户</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5">暂无用户</td></tr>';
                 return;
             }
             let html = '';
@@ -204,8 +214,7 @@
                 if (canDelete) deleteBtn = `<button class="action-btn delete-btn" onclick="deleteUser(${u.id})">删除</button>`;
                 if (canPromote) promoteBtn = `<button class="action-btn promote-btn" onclick="promoteUser(${u.id})">提权</button>`;
                 if (currentUserRole === 'system') {
-                    const statusText = u.adult_enabled === 'yes' ? '允许' : '禁止';
-                    adultToggle = `<button class="action-btn adult-btn" onclick="toggleAdultEnabled(${u.id}, '${u.adult_enabled}')">成人权限: ${statusText}</button>`;
+                    adultToggle = `<button class="action-btn adult-btn" onclick="toggleAdultEnabled(${u.id}, '${u.adult_enabled}')">切换读取权限</button>`;
                 }
 
                 // 角色标签
@@ -226,12 +235,19 @@
                 }
                 const roleBadge = `<span class="role-badge ${roleClass}">${roleText}</span>`;
 
+                // 读取权限显示
+                let readPermission = '';
+                if (u.adult_enabled === 'yes') {
+                    readPermission = '<span class="read-permit-special">特殊</span>';
+                } else {
+                    readPermission = '<span class="read-permit-normal">正常</span>';
+                }
+
                 html += `
                     <tr>
-                        <td>${u.id}</td>
                         <td>${escapeHtml(u.username)}</td>
                         <td>${roleBadge}</td>
-                        <td>${u.adult_enabled === 'yes' ? '有权限' : '无权限'}</td>
+                        <td>${readPermission}</td>
                         <td>${new Date(u.created_at).toLocaleString()}</td>
                         <td class="action-buttons">${deleteBtn} ${promoteBtn} ${adultToggle}</td>
                     </tr>
@@ -297,7 +313,7 @@
 
         window.toggleAdultEnabled = async function(userId, currentValue) {
             const newValue = currentValue === 'yes' ? 'no' : 'yes';
-            if (!confirm(`确定要将该用户的成人内容权限改为“${newValue === 'yes' ? '允许' : '禁止'}”吗？`)) return;
+            if (!confirm(`确定要将该用户的读取权限改为“${newValue === 'yes' ? '特殊' : '正常'}”吗？`)) return;
             const resultDiv = document.getElementById('manageResult');
             resultDiv.innerHTML = '处理中...';
             try {
