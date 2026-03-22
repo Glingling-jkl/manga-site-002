@@ -6,61 +6,20 @@
     <title>上传漫画 - 管理员</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        .upload-form input, .upload-form select, .upload-form textarea {
-            margin: 10px 0;
-        }
-        .file-list {
-            margin-top: 20px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 10px;
-            max-height: 300px;
-            overflow-y: auto;
-        }
-        .file-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 5px 0;
-            border-bottom: 1px solid #eee;
-        }
-        .file-name {
-            flex: 1;
-            word-break: break-all;
-        }
-        .file-status {
-            margin-left: 10px;
-            font-size: 0.8rem;
-        }
+        .upload-form input, .upload-form select, .upload-form textarea { margin: 10px 0; }
+        .file-list { margin-top: 20px; border: 1px solid #ddd; border-radius: 8px; padding: 10px; max-height: 300px; overflow-y: auto; }
+        .file-item { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid #eee; }
+        .file-name { flex: 1; word-break: break-all; }
+        .file-status { margin-left: 10px; font-size: 0.8rem; }
         .status-success { color: green; }
         .status-error { color: red; }
         .status-uploading { color: orange; }
-        .progress-bar {
-            width: 100%;
-            height: 4px;
-            background: #eee;
-            margin-top: 2px;
-        }
-        .progress-fill {
-            height: 100%;
-            background: #0070f3;
-            width: 0%;
-        }
-        .btn-submit {
-            margin-top: 20px;
-        }
-        .admin-link {
-            margin-top: 30px;
-            text-align: center;
-        }
-        .admin-link a {
-            color: #0070f3;
-            text-decoration: none;
-            font-weight: bold;
-        }
-        .admin-link a:hover {
-            text-decoration: underline;
-        }
+        .progress-bar { width: 100%; height: 4px; background: #eee; margin-top: 2px; }
+        .progress-fill { height: 100%; background: #0070f3; width: 0%; }
+        .btn-submit { margin-top: 20px; }
+        .admin-link { margin-top: 30px; text-align: center; }
+        .admin-link a { color: #0070f3; text-decoration: none; font-weight: bold; }
+        .admin-link a:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
@@ -185,12 +144,12 @@
             return data.id;
         }
 
-        async function uploadPart(comicId, partIndex, file) {
+        async function uploadPart(comicId, partIndex, file, newFileName) {
             const formData = new FormData();
             formData.append('comicId', comicId);
             formData.append('partIndex', partIndex);
             formData.append('zipFile', file);
-            formData.append('originalName', file.name);
+            formData.append('originalName', newFileName);
 
             const response = await fetch('/api/comics/upload-part', {
                 method: 'POST',
@@ -228,13 +187,12 @@
             uploadBtn.disabled = true;
 
             try {
-                // 1. 创建漫画记录
                 comicId = await uploadComicMetadata();
                 resultDiv.innerHTML = `漫画记录已创建 (ID: ${comicId})，开始上传分片...`;
 
-                // 2. 逐个上传分片
                 for (let i = 0; i < selectedFiles.length; i++) {
                     const file = selectedFiles[i];
+                    const newFileName = `part_${i+1}.zip`;
                     const statusSpan = document.getElementById(`status-${i}`);
                     const progressBar = document.getElementById(`progress-${i}`);
                     const progressFill = document.getElementById(`progress-fill-${i}`);
@@ -243,7 +201,6 @@
                     progressBar.style.display = 'block';
                     progressFill.style.width = '0%';
 
-                    // 模拟进度
                     let progress = 0;
                     const interval = setInterval(() => {
                         progress += 10;
@@ -251,7 +208,7 @@
                     }, 200);
 
                     try {
-                        await uploadPart(comicId, i, file);
+                        await uploadPart(comicId, i, file, newFileName);
                         clearInterval(interval);
                         progressFill.style.width = '100%';
                         statusSpan.innerText = '成功';
@@ -264,7 +221,6 @@
                     }
                 }
 
-                // 3. 完成上传
                 await finishUpload(comicId);
                 resultDiv.innerHTML = `
                     <div style="color:green; background:#e8f5e8; padding:15px; border-radius:8px;">
