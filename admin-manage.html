@@ -93,7 +93,7 @@
                 }
                 html += `
                     <div class="comic-manage-item" data-id="${c.id}">
-                        <img src="${c.cover_url}" alt="${c.title}">
+                        <img src="/api/proxy?url=${encodeURIComponent(c.cover_url)}" alt="${c.title}">
                         <div class="comic-info">
                             <strong>${c.title}</strong> (${c.author})<br>
                             上传者: ${c.uploader} | 所有者: ${c.owner_role}
