@@ -72,9 +72,13 @@ async function handleDelete(request, env, id) {
                 await env.FILE_CACHE.delete(coverKey);
                 console.log('KV 已删除封面:', coverKey);
             }
-            // info.json 和分片
-            const infoUrl = comic.zip_url;
-            if (infoUrl) {
+
+            // 判断是分片漫画还是单文件漫画
+            const isSplit = comic.zip_url && comic.zip_url.includes('/info.json');
+            
+            if (isSplit) {
+                // 分片漫画：删除 info.json 和所有分片
+                const infoUrl = comic.zip_url;
                 const infoKey = `file:${infoUrl}`;
                 await env.FILE_CACHE.delete(infoKey);
                 console.log('KV 已删除 info.json:', infoKey);
@@ -86,21 +90,19 @@ async function handleDelete(request, env, id) {
                     await env.FILE_CACHE.delete(partKey);
                 }
                 console.log('KV 已删除所有分片');
+            } else {
+                // 单文件漫画：删除 ZIP 文件（zip_url 直接指向 ZIP）
+                if (comic.zip_url) {
+                    const zipKey = `file:${comic.zip_url}`;
+                    await env.FILE_CACHE.delete(zipKey);
+                    console.log('KV 已删除 ZIP 文件:', zipKey);
+                }
             }
         } catch (kvErr) {
             console.error('KV 清理失败（不影响删除）:', kvErr);
         }
 
         // 2. 从 GitHub 删除文件
-        const rawBase = `https://raw.githubusercontent.com/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/main/`;
-        if (!comic.zip_url.startsWith(rawBase)) {
-            throw new Error('无法解析漫画文件夹路径');
-        }
-        const folderPath = comic.zip_url.substring(rawBase.length).replace('/info.json', '');
-        if (!folderPath) {
-            throw new Error('文件夹路径无效');
-        }
-
         const headers = {
             'Authorization': `token ${env.GITHUB_TOKEN}`,
             'Accept': 'application/vnd.github+json',
@@ -109,27 +111,7 @@ async function handleDelete(request, env, id) {
         };
         const branch = 'main';
 
-        async function getAllFilesInFolder(path) {
-            const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${path}?ref=${branch}`;
-            const res = await fetch(url, { headers });
-            if (!res.ok) {
-                if (res.status === 404) return [];
-                const err = await res.text();
-                throw new Error(`获取文件夹内容失败: ${res.status} ${err}`);
-            }
-            const items = await res.json();
-            let files = [];
-            for (const item of items) {
-                if (item.type === 'file') {
-                    files.push(item);
-                } else if (item.type === 'dir') {
-                    const subFiles = await getAllFilesInFolder(item.path);
-                    files.push(...subFiles);
-                }
-            }
-            return files;
-        }
-
+        // 辅助函数：删除单个文件
         async function deleteFile(path, sha) {
             const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${path}`;
             const body = {
@@ -148,9 +130,79 @@ async function handleDelete(request, env, id) {
             }
         }
 
-        const files = await getAllFilesInFolder(folderPath);
-        for (const file of files) {
-            await deleteFile(file.path, file.sha);
+        // 辅助函数：递归获取文件夹下所有文件（返回 {path, sha} 数组）
+        async function getAllFilesInFolder(path) {
+            const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${path}?ref=${branch}`;
+            const res = await fetch(url, { headers });
+            if (!res.ok) {
+                if (res.status === 404) return [];
+                const err = await res.text();
+                throw new Error(`获取文件夹内容失败: ${res.status} ${err}`);
+            }
+            const items = await res.json();
+            if (!Array.isArray(items)) {
+                // 如果返回的不是数组，可能是单个文件，包装成数组
+                return [items];
+            }
+            let files = [];
+            for (const item of items) {
+                if (item.type === 'file') {
+                    files.push({ path: item.path, sha: item.sha });
+                } else if (item.type === 'dir') {
+                    const subFiles = await getAllFilesInFolder(item.path);
+                    files.push(...subFiles);
+                }
+            }
+            return files;
+        }
+
+        const isSplit = comic.zip_url && comic.zip_url.includes('/info.json');
+        
+        if (isSplit) {
+            // 分片漫画：删除整个文件夹
+            const rawBase = `https://raw.githubusercontent.com/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/main/`;
+            if (!comic.zip_url.startsWith(rawBase)) {
+                throw new Error('无法解析漫画文件夹路径');
+            }
+            const folderPath = comic.zip_url.substring(rawBase.length).replace('/info.json', '');
+            if (!folderPath) {
+                throw new Error('文件夹路径无效');
+            }
+            const files = await getAllFilesInFolder(folderPath);
+            for (const file of files) {
+                await deleteFile(file.path, file.sha);
+            }
+        } else {
+            // 单文件漫画：分别删除封面和 ZIP 文件
+            // 封面
+            if (comic.cover_url) {
+                const rawBase = `https://raw.githubusercontent.com/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/main/`;
+                if (comic.cover_url.startsWith(rawBase)) {
+                    const coverPath = comic.cover_url.substring(rawBase.length);
+                    // 需要获取该文件的 SHA
+                    const coverInfoRes = await fetch(`https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${coverPath}?ref=${branch}`, { headers });
+                    if (coverInfoRes.ok) {
+                        const coverInfo = await coverInfoRes.json();
+                        if (coverInfo.sha) {
+                            await deleteFile(coverPath, coverInfo.sha);
+                        }
+                    }
+                }
+            }
+            // ZIP 文件
+            if (comic.zip_url) {
+                const rawBase = `https://raw.githubusercontent.com/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/main/`;
+                if (comic.zip_url.startsWith(rawBase)) {
+                    const zipPath = comic.zip_url.substring(rawBase.length);
+                    const zipInfoRes = await fetch(`https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${zipPath}?ref=${branch}`, { headers });
+                    if (zipInfoRes.ok) {
+                        const zipInfo = await zipInfoRes.json();
+                        if (zipInfo.sha) {
+                            await deleteFile(zipPath, zipInfo.sha);
+                        }
+                    }
+                }
+            }
         }
 
         // 3. 删除数据库记录
