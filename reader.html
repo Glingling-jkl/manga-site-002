@@ -317,21 +317,23 @@
 
                 try {
                     const infoUrl = zipUrl;
-                    console.log('加载 info.json:', infoUrl);
+                    const proxyInfoUrl = `/api/proxy?url=${encodeURIComponent(infoUrl)}`;
+                    console.log('加载 info.json (proxy):', proxyInfoUrl);
                     
-                    const infoResponse = await fetchWithTimeout(infoUrl, {}, 10000);
+                    const infoResponse = await fetchWithTimeout(proxyInfoUrl, {}, 10000);
                     if (!infoResponse.ok) {
                         throw new Error(`无法加载 info.json (HTTP ${infoResponse.status})`);
                     }
                     
                     const info = await infoResponse.json();
-                    const baseUrl = infoUrl.substring(0, infoUrl.lastIndexOf('/'));
+                    const baseUrl = zipUrl.substring(0, zipUrl.lastIndexOf('/'));
                     threadInfo.innerText = `分片模式 (${info.total_parts} 个分片)`;
                     progressMessage.innerText = '下载中...';
                     
                     viewer.innerHTML = '';
                     for (let i = 0; i < info.parts.length; i++) {
-                        const partUrl = `${baseUrl}/zips/${info.parts[i]}`;
+                        const rawPartUrl = `${baseUrl}/zips/${info.parts[i]}`;
+                        const partUrl = `/api/proxy?url=${encodeURIComponent(rawPartUrl)}`;
                         console.log(`请求分片 ${i+1}: ${partUrl}`);
                         await downloadPart(partUrl, i + 1);
                         const percent = Math.round(((i + 1) / info.total_parts) * 100);
