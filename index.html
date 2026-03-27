@@ -545,7 +545,7 @@
             for (let c of comics) {
                 html += `
                     <div class="comic-card" onclick="location.href='detail.html?id=${c.id}'">
-                        <img src="${c.cover_url}" alt="${c.title}" loading="lazy">
+                        <img src="/api/proxy?url=${encodeURIComponent(c.cover_url)}" alt="${c.title}" loading="lazy">
                         <h3>${c.title}</h3>
                         <p>${c.author} · ${c.chapters}话</p>
                         <div class="tags">${c.tags.map(t => `<span>${t}</span>`).join('')}</div>
