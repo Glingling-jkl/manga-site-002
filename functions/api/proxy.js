@@ -54,7 +54,10 @@ export async function onRequest(context) {
         });
 
         if (!originResponse.ok) {
-            return new Response(`Failed to fetch: ${originResponse.status}`, { status: originResponse.status });
+            return new Response(`Failed to fetch: ${originResponse.status}`, { 
+                status: originResponse.status,
+                headers: { 'Access-Control-Allow-Origin': '*' }
+            });
         }
 
         // 如果是 HEAD 请求，直接返回响应头
@@ -67,9 +70,9 @@ export async function onRequest(context) {
         // GET 请求：获取 body
         const blob = await originResponse.arrayBuffer();
 
-        // 3. 存入 KV，有效期 30 天
+        // 3. 存入 KV，有效期 30 天（异步执行，不阻塞响应）
         const kvKey = `file:${fileUrl}`;
-        await env.FILE_CACHE.put(kvKey, blob, { expirationTtl: 2592000 });
+        context.waitUntil(env.FILE_CACHE.put(kvKey, blob, { expirationTtl: 2592000 }));
 
         // 4. 返回文件
         let contentType = getContentType(fileUrl);
@@ -82,7 +85,10 @@ export async function onRequest(context) {
         });
     } catch (err) {
         console.error('Proxy error:', err);
-        return new Response(`Proxy error: ${err.message}`, { status: 500 });
+        return new Response(`Proxy error: ${err.message}`, { 
+            status: 500,
+            headers: { 'Access-Control-Allow-Origin': '*' }
+        });
     }
 }
 
