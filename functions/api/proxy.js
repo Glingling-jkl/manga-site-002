@@ -70,9 +70,14 @@ export async function onRequest(context) {
         // GET 请求：获取 body
         const blob = await originResponse.arrayBuffer();
 
-        // 3. 存入 KV，有效期 30 天（异步执行，不阻塞响应）
+        // 3. 存入 KV，有效期 30 天（必须在返回响应前完成，确保写入成功）
         const kvKey = `file:${fileUrl}`;
-        context.waitUntil(env.FILE_CACHE.put(kvKey, blob, { expirationTtl: 2592000 }));
+        try {
+            await env.FILE_CACHE.put(kvKey, blob, { expirationTtl: 2592000 });
+            console.log('KV 写入成功:', fileUrl);
+        } catch (kvErr) {
+            console.error('KV 写入失败:', kvErr);
+        }
 
         // 4. 返回文件
         let contentType = getContentType(fileUrl);
