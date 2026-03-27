@@ -14,7 +14,6 @@ export async function onRequestPost(context) {
         const zipFile = formData.get('zipFile');
         const originalName = formData.get('originalName') || `part_${partIndex + 1}.zip`;
 
-        // 获取漫画信息
         const comic = await env.DB.prepare(
             'SELECT title, uploaded_at FROM comics WHERE id = ?'
         ).bind(comicId).first();
@@ -24,18 +23,11 @@ export async function onRequestPost(context) {
 
         const timestamp = new Date(comic.uploaded_at).getTime() || Date.now();
         const safeTitle = comic.title.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_');
-        // 关键修改：文件夹路径为 zip-s/时间_漫画名
         const folderName = `zip-s/${timestamp}_${safeTitle}`;
         const fileName = `${folderName}/zips/${originalName}`;
 
-        // 转换为 Base64
         const arrayBuffer = await zipFile.arrayBuffer();
-        const bytes = new Uint8Array(arrayBuffer);
-        let binary = '';
-        for (let i = 0; i < bytes.length; i++) {
-            binary += String.fromCharCode(bytes[i]);
-        }
-        const base64 = btoa(binary);
+        const base64 = arrayBufferToBase64(arrayBuffer);
 
         const headers = {
             'Authorization': `token ${env.GITHUB_TOKEN}`,
@@ -46,7 +38,6 @@ export async function onRequestPost(context) {
         };
         const branch = 'main';
 
-        // 上传到 GitHub
         const res = await fetch(`https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${fileName}`, {
             method: 'PUT',
             headers,
@@ -62,9 +53,27 @@ export async function onRequestPost(context) {
             throw new Error(`GitHub 上传失败: ${res.status} ${errorText}`);
         }
 
+        // 写入 KV 缓存
+        try {
+            const rawUrl = `https://raw.githubusercontent.com/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/${branch}/${fileName}`;
+            const kvKey = `file:${rawUrl}`;
+            await env.FILE_CACHE.put(kvKey, arrayBuffer, { expirationTtl: 2592000 });
+        } catch (kvErr) {
+            console.error('KV 写入失败（不影响上传）:', kvErr);
+        }
+
         return Response.json({ success: true });
     } catch (err) {
         console.error('Upload part error:', err);
         return Response.json({ success: false, error: err.message }, { status: 500 });
     }
+}
+
+function arrayBufferToBase64(arrayBuffer) {
+    const bytes = new Uint8Array(arrayBuffer);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
 }
