@@ -64,13 +64,39 @@ async function handleDelete(request, env, id) {
             return Response.json({ success: false, error: '无权删除此漫画' }, { status: 403 });
         }
 
-        // 从 zip_url 中提取文件夹路径
-        const infoUrl = comic.zip_url;
+        // 1. 清理 KV 缓存
+        try {
+            // 封面
+            if (comic.cover_url) {
+                const coverKey = `file:${comic.cover_url}`;
+                await env.FILE_CACHE.delete(coverKey);
+                console.log('KV 已删除封面:', coverKey);
+            }
+            // info.json 和分片
+            const infoUrl = comic.zip_url;
+            if (infoUrl) {
+                const infoKey = `file:${infoUrl}`;
+                await env.FILE_CACHE.delete(infoKey);
+                console.log('KV 已删除 info.json:', infoKey);
+                
+                const baseUrl = infoUrl.substring(0, infoUrl.lastIndexOf('/'));
+                for (let i = 1; i <= comic.total_parts; i++) {
+                    const partUrl = `${baseUrl}/zips/part_${i}.zip`;
+                    const partKey = `file:${partUrl}`;
+                    await env.FILE_CACHE.delete(partKey);
+                }
+                console.log('KV 已删除所有分片');
+            }
+        } catch (kvErr) {
+            console.error('KV 清理失败（不影响删除）:', kvErr);
+        }
+
+        // 2. 从 GitHub 删除文件
         const rawBase = `https://raw.githubusercontent.com/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/main/`;
-        if (!infoUrl.startsWith(rawBase)) {
+        if (!comic.zip_url.startsWith(rawBase)) {
             throw new Error('无法解析漫画文件夹路径');
         }
-        const folderPath = infoUrl.substring(rawBase.length).replace('/info.json', '');
+        const folderPath = comic.zip_url.substring(rawBase.length).replace('/info.json', '');
         if (!folderPath) {
             throw new Error('文件夹路径无效');
         }
@@ -83,7 +109,6 @@ async function handleDelete(request, env, id) {
         };
         const branch = 'main';
 
-        // 递归获取文件夹下所有文件
         async function getAllFilesInFolder(path) {
             const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${path}?ref=${branch}`;
             const res = await fetch(url, { headers });
@@ -105,7 +130,6 @@ async function handleDelete(request, env, id) {
             return files;
         }
 
-        // 删除单个文件
         async function deleteFile(path, sha) {
             const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${path}`;
             const body = {
@@ -124,14 +148,12 @@ async function handleDelete(request, env, id) {
             }
         }
 
-        // 获取所有文件
         const files = await getAllFilesInFolder(folderPath);
-        // 删除所有文件
         for (const file of files) {
             await deleteFile(file.path, file.sha);
         }
 
-        // 删除数据库记录
+        // 3. 删除数据库记录
         await env.DB.prepare('DELETE FROM comics WHERE id = ?').bind(id).run();
 
         return Response.json({ success: true, message: '删除成功' });
