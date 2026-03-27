@@ -19,7 +19,6 @@ export async function onRequestPost(context) {
 
         const timestamp = new Date(comic.uploaded_at).getTime() || Date.now();
         const safeTitle = comic.title.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_');
-        // 关键修改：文件夹路径为 zip-s/时间_漫画名
         const folderName = `zip-s/${timestamp}_${safeTitle}`;
 
         const parts = [];
@@ -61,6 +60,16 @@ export async function onRequestPost(context) {
         if (!res.ok) {
             const errorText = await res.text();
             throw new Error(`生成 info.json 失败: ${res.status} ${errorText}`);
+        }
+
+        // 写入 KV 缓存 info.json
+        try {
+            const infoRawUrl = `https://raw.githubusercontent.com/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/${branch}/${infoFileName}`;
+            const kvKey = `file:${infoRawUrl}`;
+            const infoBlob = new TextEncoder().encode(JSON.stringify(info));
+            await env.FILE_CACHE.put(kvKey, infoBlob, { expirationTtl: 2592000 });
+        } catch (kvErr) {
+            console.error('KV 写入 info.json 失败（不影响上传）:', kvErr);
         }
 
         const rawBase = `https://raw.githubusercontent.com/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/${branch}`;
