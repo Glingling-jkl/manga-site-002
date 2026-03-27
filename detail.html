@@ -185,7 +185,8 @@
 
         async function loadCoverImage(imgElement, url) {
             try {
-                const blob = await fetchWithChunks(url);
+                const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
+                const blob = await fetchWithChunks(proxyUrl);
                 const objectUrl = URL.createObjectURL(blob);
                 imgElement.src = objectUrl;
             } catch (err) {
