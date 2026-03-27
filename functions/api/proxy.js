@@ -1,27 +1,47 @@
 // functions/api/proxy.js
-export async function onRequestGet(context) {
+export async function onRequest(context) {
     const { request, env } = context;
     const url = new URL(request.url);
-    const fileUrl = url.searchParams.get('url');
 
+    // 处理 OPTIONS 预检请求
+    if (request.method === 'OPTIONS') {
+        return new Response(null, {
+            headers: {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+                'Access-Control-Allow-Headers': 'Range, Content-Type',
+                'Access-Control-Max-Age': '86400',
+            }
+        });
+    }
+
+    // 只允许 GET 和 HEAD
+    if (request.method !== 'GET' && request.method !== 'HEAD') {
+        return new Response('Method Not Allowed', { status: 405 });
+    }
+
+    const fileUrl = url.searchParams.get('url');
     if (!fileUrl) {
         return new Response('Missing url parameter', { status: 400 });
     }
 
     try {
-        // 1. 尝试从 KV 读取
-        const kvKey = `file:${fileUrl}`;
-        let cached = await env.FILE_CACHE.get(kvKey, { type: 'arrayBuffer' });
-        if (cached !== null) {
-            console.log('KV 命中:', fileUrl);
-            let contentType = getContentType(fileUrl);
-            return new Response(cached, {
-                headers: {
-                    'Content-Type': contentType,
-                    'Cache-Control': 'public, max-age=86400',
-                    'Access-Control-Allow-Origin': '*'
-                }
-            });
+        // 1. 尝试从 KV 读取（仅对 GET 请求缓存，HEAD 请求不缓存）
+        let cached = null;
+        if (request.method === 'GET') {
+            const kvKey = `file:${fileUrl}`;
+            cached = await env.FILE_CACHE.get(kvKey, { type: 'arrayBuffer' });
+            if (cached !== null) {
+                console.log('KV 命中:', fileUrl);
+                let contentType = getContentType(fileUrl);
+                return new Response(cached, {
+                    headers: {
+                        'Content-Type': contentType,
+                        'Cache-Control': 'public, max-age=86400',
+                        'Access-Control-Allow-Origin': '*'
+                    }
+                });
+            }
         }
 
         // 2. 未命中，从 GitHub 获取
@@ -37,9 +57,18 @@ export async function onRequestGet(context) {
             return new Response(`Failed to fetch: ${originResponse.status}`, { status: originResponse.status });
         }
 
+        // 如果是 HEAD 请求，直接返回响应头
+        if (request.method === 'HEAD') {
+            const headers = new Headers(originResponse.headers);
+            headers.set('Access-Control-Allow-Origin', '*');
+            return new Response(null, { headers });
+        }
+
+        // GET 请求：获取 body
         const blob = await originResponse.arrayBuffer();
 
         // 3. 存入 KV，有效期 30 天
+        const kvKey = `file:${fileUrl}`;
         await env.FILE_CACHE.put(kvKey, blob, { expirationTtl: 2592000 });
 
         // 4. 返回文件
