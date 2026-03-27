@@ -153,6 +153,17 @@
             font-size: 0.9rem;
             color: #ccc;
         }
+        .error-details {
+            background: rgba(0,0,0,0.8);
+            border-left: 4px solid #ff6b6b;
+            padding: 10px;
+            margin: 10px;
+            font-family: monospace;
+            font-size: 0.8rem;
+            text-align: left;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
@@ -202,6 +213,51 @@
             resetBtn.style.display = 'none';
         }
 
+        // 显示错误详情
+        function showError(message, details = null) {
+            const errorHtml = `
+                <div class="error-details">
+                    <strong>❌ 加载失败</strong><br>
+                    ${message}<br>
+                    ${details ? `<br>📄 详细信息：<br>${escapeHtml(details)}` : ''}
+                    <br><br>
+                    💡 你可以尝试：
+                    <br>• <a href="${zipUrl}" target="_blank" style="color:#ffb6c1;">直接打开漫画链接</a>
+                    <br>• 检查网络连接后 <button onclick="window.location.reload()">重试</button>
+                </div>
+            `;
+            viewer.innerHTML = errorHtml;
+            if (progressContainer) progressContainer.style.display = 'none';
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+
+        // 带超时和重试的 fetch
+        async function fetchWithTimeout(url, options = {}, timeout = 30000) {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), timeout);
+            try {
+                const response = await fetch(url, {
+                    ...options,
+                    signal: controller.signal,
+                    mode: 'cors',
+                    credentials: 'omit'
+                });
+                clearTimeout(id);
+                return response;
+            } catch (err) {
+                clearTimeout(id);
+                throw err;
+            }
+        }
+
         // 加载单个 ZIP 并解压
         async function loadZipFile(file) {
             try {
@@ -227,14 +283,26 @@
             }
         }
 
-        // 下载单个分片
-        async function downloadPart(url, partIndex) {
-            console.log(`正在下载分片 ${partIndex}: ${url}`);
-            const response = await fetch(url, { mode: 'cors' });
-            if (!response.ok) throw new Error(`HTTP ${response.status} (${url})`);
-            const blob = await response.blob();
-            const file = new File([blob], `part_${partIndex}.zip`, { type: 'application/zip' });
-            await loadZipFile(file);
+        // 下载单个分片（带重试）
+        async function downloadPart(url, partIndex, retryCount = 0) {
+            const maxRetries = 2;
+            try {
+                console.log(`正在下载分片 ${partIndex}: ${url}`);
+                const response = await fetchWithTimeout(url, {}, 30000);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status} ${response.statusText}`);
+                }
+                const blob = await response.blob();
+                const file = new File([blob], `part_${partIndex}.zip`, { type: 'application/zip' });
+                await loadZipFile(file);
+            } catch (err) {
+                if (retryCount < maxRetries) {
+                    console.warn(`分片 ${partIndex} 下载失败，重试 ${retryCount + 1}/${maxRetries}: ${err.message}`);
+                    await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+                    return downloadPart(url, partIndex, retryCount + 1);
+                }
+                throw new Error(`分片 ${partIndex} 下载失败: ${err.message}`);
+            }
         }
 
         // 主加载逻辑
@@ -248,21 +316,21 @@
                 threadInfo.innerText = '';
 
                 try {
-                    // info.json 的 URL 就是 zipUrl（数据库存的是 info.json 的链接）
                     const infoUrl = zipUrl;
                     console.log('加载 info.json:', infoUrl);
-                    const infoRes = await fetch(infoUrl, { mode: 'cors' });
-                    if (!infoRes.ok) throw new Error(`无法加载 info.json (${infoRes.status})`);
-
-                    const info = await infoRes.json();
-                    // 获取 info.json 所在的目录（即 zip-s/时间_漫画名）
+                    
+                    const infoResponse = await fetchWithTimeout(infoUrl, {}, 10000);
+                    if (!infoResponse.ok) {
+                        throw new Error(`无法加载 info.json (HTTP ${infoResponse.status})`);
+                    }
+                    
+                    const info = await infoResponse.json();
                     const baseUrl = infoUrl.substring(0, infoUrl.lastIndexOf('/'));
                     threadInfo.innerText = `分片模式 (${info.total_parts} 个分片)`;
                     progressMessage.innerText = '下载中...';
                     
                     viewer.innerHTML = '';
                     for (let i = 0; i < info.parts.length; i++) {
-                        // 分片 URL 为 目录/zips/分片文件名
                         const partUrl = `${baseUrl}/zips/${info.parts[i]}`;
                         console.log(`请求分片 ${i+1}: ${partUrl}`);
                         await downloadPart(partUrl, i + 1);
@@ -274,11 +342,7 @@
                 } catch (err) {
                     console.error('加载失败:', err);
                     progressContainer.style.display = 'none';
-                    viewer.innerHTML = `
-                        <p style="color:red;">加载失败：${err.message}</p>
-                        <p style="color:#ccc; font-size:0.9rem;">请检查浏览器控制台（F12）查看详细请求URL。</p>
-                        <button class="retry-button" onclick="window.location.reload()">重试</button>
-                    `;
+                    showError(err.message, err.stack || '无详细信息');
                 }
             })();
         }
