@@ -9,21 +9,27 @@ export async function onRequestGet(context) {
     }
 
     try {
-        // 尝试从缓存中获取
-        const cache = caches.default;
-        let cachedResponse = await cache.match(request);
-        if (cachedResponse) {
-            console.log('Cache HIT');
-            return cachedResponse;
+        // 1. 尝试从 KV 读取
+        const kvKey = `file:${fileUrl}`;
+        let cached = await env.FILE_CACHE.get(kvKey, { type: 'arrayBuffer' });
+        if (cached !== null) {
+            console.log('KV 命中:', fileUrl);
+            let contentType = getContentType(fileUrl);
+            return new Response(cached, {
+                headers: {
+                    'Content-Type': contentType,
+                    'Cache-Control': 'public, max-age=86400',
+                    'Access-Control-Allow-Origin': '*'
+                }
+            });
         }
 
-        console.log('Cache MISS, fetching from origin');
-
-        // 从 GitHub 获取文件，带上原始请求的 Range 头（如果有）
+        // 2. 未命中，从 GitHub 获取
+        console.log('KV 未命中，从 GitHub 获取:', fileUrl);
         const originResponse = await fetch(fileUrl, {
             headers: {
                 'User-Agent': 'Manga-Site-Proxy/1.0',
-                'Range': request.headers.get('Range') || ''  // 透传 Range
+                'Range': request.headers.get('Range') || ''
             }
         });
 
@@ -31,23 +37,33 @@ export async function onRequestGet(context) {
             return new Response(`Failed to fetch: ${originResponse.status}`, { status: originResponse.status });
         }
 
-        // 构造新响应，保留必要的头
-        const newHeaders = new Headers(originResponse.headers);
-        newHeaders.set('Access-Control-Allow-Origin', '*');
-        newHeaders.set('Cache-Control', 'public, max-age=86400'); // 缓存 24 小时
-        newHeaders.set('Content-Type', 'application/zip');
+        const blob = await originResponse.arrayBuffer();
 
-        const newResponse = new Response(originResponse.body, {
-            status: originResponse.status,
-            statusText: originResponse.statusText,
-            headers: newHeaders
+        // 3. 存入 KV，有效期 30 天
+        await env.FILE_CACHE.put(kvKey, blob, { expirationTtl: 2592000 });
+
+        // 4. 返回文件
+        let contentType = getContentType(fileUrl);
+        return new Response(blob, {
+            headers: {
+                'Content-Type': contentType,
+                'Cache-Control': 'public, max-age=86400',
+                'Access-Control-Allow-Origin': '*'
+            }
         });
-
-        // 异步存入缓存
-        context.waitUntil(cache.put(request, newResponse.clone()));
-
-        return newResponse;
     } catch (err) {
+        console.error('Proxy error:', err);
         return new Response(`Proxy error: ${err.message}`, { status: 500 });
     }
+}
+
+function getContentType(fileUrl) {
+    const ext = fileUrl.split('.').pop().split('?')[0].toLowerCase();
+    const mimeMap = {
+        'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+        'png': 'image/png', 'gif': 'image/gif',
+        'webp': 'image/webp', 'zip': 'application/zip',
+        'json': 'application/json'
+    };
+    return mimeMap[ext] || 'application/octet-stream';
 }
