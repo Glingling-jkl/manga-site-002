@@ -17,7 +17,7 @@ export async function onRequestPost(context) {
         const pages = parseInt(formData.get('pages') || '0');
         const description = formData.get('description') || '';
         const ownerRole = formData.get('owner_role') || 'user';
-        const isAdult = formData.get('is_adult') === 'yes' ? 'yes' : 'no'; // 新增
+        const isAdult = formData.get('is_adult') === 'yes' ? 'yes' : 'no';
 
         if (!title || !author) {
             return Response.json({ success: false, error: '标题和作者不能为空' }, { status: 400 });
@@ -38,8 +38,11 @@ export async function onRequestPost(context) {
         const coverFileName = `covers/${timestamp}_${coverFile.name}`;
         const zipFileName = `zips/${timestamp}_${zipFile.name}`;
 
-        const coverBase64 = await fileToBase64(coverFile);
-        const zipBase64 = await fileToBase64(zipFile);
+        const coverArrayBuffer = await coverFile.arrayBuffer();
+        const zipArrayBuffer = await zipFile.arrayBuffer();
+
+        const coverBase64 = arrayBufferToBase64(coverArrayBuffer);
+        const zipBase64 = arrayBufferToBase64(zipArrayBuffer);
 
         const headers = {
             'Authorization': `token ${env.GITHUB_TOKEN}`,
@@ -51,6 +54,7 @@ export async function onRequestPost(context) {
 
         const branch = 'main';
 
+        // 上传封面到 GitHub
         const coverRes = await fetch(`https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${coverFileName}`, {
             method: 'PUT',
             headers,
@@ -65,6 +69,7 @@ export async function onRequestPost(context) {
             throw new Error(`封面上传失败 (${coverRes.status}): ${errorText}`);
         }
 
+        // 上传 ZIP 到 GitHub
         const zipRes = await fetch(`https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${zipFileName}`, {
             method: 'PUT',
             headers,
@@ -83,7 +88,15 @@ export async function onRequestPost(context) {
         const coverUrl = `${rawBase}/${coverFileName}`;
         const zipUrl = `${rawBase}/${zipFileName}`;
 
-        // 插入数据库，增加 is_adult 字段
+        // 写入 KV 缓存封面
+        try {
+            const coverKey = `file:${coverUrl}`;
+            await env.FILE_CACHE.put(coverKey, coverArrayBuffer, { expirationTtl: 2592000 });
+        } catch (kvErr) {
+            console.error('封面写入 KV 失败:', kvErr);
+        }
+
+        // 插入数据库
         const result = await env.DB.prepare(
             `INSERT INTO comics 
             (title, author, uploader, tags, chapters, pages, cover_url, zip_url, description, owner_role, is_adult) 
@@ -104,8 +117,7 @@ export async function onRequestPost(context) {
     }
 }
 
-async function fileToBase64(file) {
-    const arrayBuffer = await file.arrayBuffer();
+function arrayBufferToBase64(arrayBuffer) {
     const bytes = new Uint8Array(arrayBuffer);
     let binary = '';
     for (let i = 0; i < bytes.length; i++) {
