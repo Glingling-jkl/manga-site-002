@@ -316,6 +316,26 @@
                 threadInfo.innerText = '';
 
                 try {
+                    // 判断是单文件还是分片
+                    const isSplit = zipUrl.includes('/info.json');
+                    
+                    if (!isSplit) {
+                        // 旧版单文件漫画：直接下载 ZIP
+                        progressMessage.innerText = '下载漫画...';
+                        const proxyUrl = `/api/proxy?url=${encodeURIComponent(zipUrl)}`;
+                        console.log('加载单文件 ZIP (proxy):', proxyUrl);
+                        const response = await fetchWithTimeout(proxyUrl, {}, 30000);
+                        if (!response.ok) {
+                            throw new Error(`无法加载 ZIP 文件 (HTTP ${response.status})`);
+                        }
+                        const blob = await response.blob();
+                        const file = new File([blob], 'comic.zip', { type: 'application/zip' });
+                        progressContainer.style.display = 'none';
+                        await loadZipFile(file);
+                        return;
+                    }
+                    
+                    // 分片漫画流程
                     const infoUrl = zipUrl;
                     const proxyInfoUrl = `/api/proxy?url=${encodeURIComponent(infoUrl)}`;
                     console.log('加载 info.json (proxy):', proxyInfoUrl);
