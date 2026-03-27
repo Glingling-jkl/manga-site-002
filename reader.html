@@ -239,8 +239,8 @@
             });
         }
 
-        // 带超时和重试的 fetch
-        async function fetchWithTimeout(url, options = {}, timeout = 30000) {
+        // 带进度回调的 fetch
+        async function fetchWithProgress(url, onProgress, options = {}, timeout = 30000) {
             const controller = new AbortController();
             const id = setTimeout(() => controller.abort(), timeout);
             try {
@@ -251,7 +251,40 @@
                     credentials: 'omit'
                 });
                 clearTimeout(id);
-                return response;
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const contentLength = response.headers.get('content-length');
+                const total = contentLength ? parseInt(contentLength, 10) : 0;
+                
+                if (!total || !onProgress) {
+                    return await response.arrayBuffer();
+                }
+                
+                // 读取流并报告进度
+                const reader = response.body.getReader();
+                const chunks = [];
+                let received = 0;
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    chunks.push(value);
+                    received += value.length;
+                    onProgress(received, total);
+                }
+                
+                // 合并所有块
+                const allChunks = new Uint8Array(received);
+                let position = 0;
+                for (const chunk of chunks) {
+                    allChunks.set(chunk, position);
+                    position += chunk.length;
+                }
+                
+                return allChunks.buffer;
             } catch (err) {
                 clearTimeout(id);
                 throw err;
@@ -283,25 +316,38 @@
             }
         }
 
-        // 下载单个分片（带重试）
-        async function downloadPart(url, partIndex, retryCount = 0) {
+        // 下载单个分片（带重试和进度）
+        async function downloadPart(url, partIndex, updateProgress, partNumber, totalParts) {
             const maxRetries = 2;
-            try {
-                console.log(`正在下载分片 ${partIndex}: ${url}`);
-                const response = await fetchWithTimeout(url, {}, 30000);
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status} ${response.statusText}`);
+            let retryCount = 0;
+            
+            while (retryCount <= maxRetries) {
+                try {
+                    console.log(`正在下载分片 ${partIndex}: ${url}`);
+                    
+                    // 定义分片进度回调
+                    const onPartProgress = (received, total) => {
+                        const partPercent = (received / total) * 100;
+                        updateProgress(partNumber, totalParts, partPercent);
+                    };
+                    
+                    const arrayBuffer = await fetchWithProgress(url, onPartProgress, {}, 30000);
+                    const blob = new Blob([arrayBuffer], { type: 'application/zip' });
+                    const file = new File([blob], `part_${partIndex}.zip`, { type: 'application/zip' });
+                    await loadZipFile(file);
+                    
+                    // 下载成功，标记为完成
+                    updateProgress(partNumber, totalParts, 100);
+                    return;
+                } catch (err) {
+                    if (retryCount < maxRetries) {
+                        console.warn(`分片 ${partIndex} 下载失败，重试 ${retryCount + 1}/${maxRetries}: ${err.message}`);
+                        await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+                        retryCount++;
+                    } else {
+                        throw new Error(`分片 ${partIndex} 下载失败: ${err.message}`);
+                    }
                 }
-                const blob = await response.blob();
-                const file = new File([blob], `part_${partIndex}.zip`, { type: 'application/zip' });
-                await loadZipFile(file);
-            } catch (err) {
-                if (retryCount < maxRetries) {
-                    console.warn(`分片 ${partIndex} 下载失败，重试 ${retryCount + 1}/${maxRetries}: ${err.message}`);
-                    await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
-                    return downloadPart(url, partIndex, retryCount + 1);
-                }
-                throw new Error(`分片 ${partIndex} 下载失败: ${err.message}`);
             }
         }
 
@@ -320,15 +366,26 @@
                     const isSplit = zipUrl.includes('/info.json');
                     
                     if (!isSplit) {
-                        // 旧版单文件漫画：直接下载 ZIP
-                        progressMessage.innerText = '下载漫画...';
+                        // 旧版单文件漫画：直接下载 ZIP，带进度条
+                        progressMessage.innerText = '下载漫画中...';
                         const proxyUrl = `/api/proxy?url=${encodeURIComponent(zipUrl)}`;
                         console.log('加载单文件 ZIP (proxy):', proxyUrl);
-                        const response = await fetchWithTimeout(proxyUrl, {}, 30000);
-                        if (!response.ok) {
-                            throw new Error(`无法加载 ZIP 文件 (HTTP ${response.status})`);
-                        }
-                        const blob = await response.blob();
+                        
+                        let lastPercent = 0;
+                        const onProgress = (received, total) => {
+                            if (total > 0) {
+                                const percent = Math.round((received / total) * 100);
+                                if (percent !== lastPercent) {
+                                    lastPercent = percent;
+                                    progressFill.style.width = percent + '%';
+                                    progressPercent.innerText = percent + '%';
+                                    console.log(`单文件下载进度: ${percent}%`);
+                                }
+                            }
+                        };
+                        
+                        const arrayBuffer = await fetchWithProgress(proxyUrl, onProgress, {}, 60000);
+                        const blob = new Blob([arrayBuffer], { type: 'application/zip' });
                         const file = new File([blob], 'comic.zip', { type: 'application/zip' });
                         progressContainer.style.display = 'none';
                         await loadZipFile(file);
@@ -351,15 +408,40 @@
                     progressMessage.innerText = '下载中...';
                     
                     viewer.innerHTML = '';
+                    
+                    // 每个分片的进度
+                    const partProgress = new Array(info.total_parts).fill(0);
+                    
+                    // 更新总进度
+                    const updateTotalProgress = () => {
+                        const totalPercent = partProgress.reduce((sum, p) => sum + p, 0) / info.total_parts;
+                        progressFill.style.width = totalPercent + '%';
+                        progressPercent.innerText = Math.round(totalPercent) + '%';
+                    };
+                    
+                    // 更新单个分片进度
+                    const updateProgress = (partNumber, totalParts, percent) => {
+                        partProgress[partNumber - 1] = percent;
+                        updateTotalProgress();
+                        console.log(`分片 ${partNumber}/${totalParts} 进度: ${percent}%`);
+                    };
+                    
+                    // 并发下载所有分片
+                    const CONCURRENT_LIMIT = 3;
+                    const parts = [];
                     for (let i = 0; i < info.parts.length; i++) {
                         const rawPartUrl = `${baseUrl}/zips/${info.parts[i]}`;
                         const partUrl = `/api/proxy?url=${encodeURIComponent(rawPartUrl)}`;
-                        console.log(`请求分片 ${i+1}: ${partUrl}`);
-                        await downloadPart(partUrl, i + 1);
-                        const percent = Math.round(((i + 1) / info.total_parts) * 100);
-                        progressFill.style.width = percent + '%';
-                        progressPercent.innerText = percent + '%';
+                        parts.push({ url: partUrl, index: i + 1 });
                     }
+                    
+                    // 使用 Promise 池控制并发
+                    for (let i = 0; i < parts.length; i += CONCURRENT_LIMIT) {
+                        const batch = parts.slice(i, i + CONCURRENT_LIMIT);
+                        const batchPromises = batch.map(part => downloadPart(part.url, part.index, updateProgress, part.index, info.total_parts));
+                        await Promise.all(batchPromises);
+                    }
+                    
                     progressContainer.style.display = 'none';
                 } catch (err) {
                     console.error('加载失败:', err);
@@ -367,6 +449,25 @@
                     showError(err.message, err.stack || '无详细信息');
                 }
             })();
+        }
+
+        // 带超时的 fetch（用于小文件）
+        async function fetchWithTimeout(url, options = {}, timeout = 30000) {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), timeout);
+            try {
+                const response = await fetch(url, {
+                    ...options,
+                    signal: controller.signal,
+                    mode: 'cors',
+                    credentials: 'omit'
+                });
+                clearTimeout(id);
+                return response;
+            } catch (err) {
+                clearTimeout(id);
+                throw err;
+            }
         }
 
         // ---------- 以下为控制栏、返回按钮、本地上传等原有功能 ----------
