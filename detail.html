@@ -6,7 +6,7 @@
     <title>漫画详情</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* 样式保持不变 */
+        /* 样式与之前完全一致，不做任何改动 */
         .comic-detail {
             text-align: center;
         }
@@ -309,7 +309,7 @@
     </div>
 
     <script>
-        // ========== 辅助函数 ==========
+        // ========== 辅助函数（不变） ==========
         const CHUNK_COUNT = 4;
 
         async function fetchWithChunks(url) {
@@ -379,7 +379,7 @@
             loadComments(comicId);
         }
 
-        // ========== 漫画详情 ==========
+        // ========== 漫画详情（不变） ==========
         async function loadComicDetail(id) {
             try {
                 const res = await fetch(`/api/comics/${id}`, {
@@ -441,9 +441,13 @@
             window.location.href = `reader.html?zip=${encodeURIComponent(zipUrl)}&id=${comicId}`;
         }
 
-        // ========== 评论区 ==========
+        // ========== 评论区（重构部分） ==========
+        // 全局变量
         let currentMenu = null;
+        let allComments = [];
+        let topComments = [];
 
+        // 辅助函数：获取位置
         function getPosition(x, y, menuWidth, menuHeight) {
             const winWidth = window.innerWidth;
             const winHeight = window.innerHeight;
@@ -461,9 +465,7 @@
             return { left, top };
         }
 
-        let allComments = [];
-        let topComments = [];
-
+        // 加载评论（获取数据并组装）
         async function loadComments(comicId) {
             const listDiv = document.getElementById('comment-list');
             listDiv.innerHTML = '加载评论中...';
@@ -472,6 +474,7 @@
                 const data = await res.json();
                 if (data.success) {
                     allComments = data.data;
+                    // 构建回复映射
                     const repliesMap = new Map();
                     const top = [];
                     for (const comment of allComments) {
@@ -497,6 +500,7 @@
             }
         }
 
+        // 渲染评论（生成HTML，并绑定事件委托）
         function renderComments(topComments) {
             const listDiv = document.getElementById('comment-list');
             if (topComments.length === 0) {
@@ -535,7 +539,6 @@
                         if (reply.user_role === 'system') replyGroup = '系统';
                         else if (reply.user_role === 'admin') replyGroup = '管理员';
                         else replyGroup = '用户';
-                        // 只有当 reply_to_username 有值时才显示 @ 前缀
                         const showAt = reply.reply_to_username && reply.reply_to_username.trim() !== '';
                         html += `
                             <div class="reply-item" data-comment-id="${reply.id}" data-user-id="${reply.user_id}" data-user-role="${reply.user_role}" data-created-at="${reply.created_at}">
@@ -553,174 +556,182 @@
                 html += `</div>`;
             }
             listDiv.innerHTML = html;
-
-            // 绑定回复按钮
-            document.querySelectorAll('.reply-button').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const commentId = btn.getAttribute('data-id');
-                    const form = document.getElementById(`reply-form-${commentId}`);
-                    if (form) {
-                        form.style.display = form.style.display === 'none' ? 'block' : 'none';
-                    }
-                });
-            });
-
-            // 🔴 修复1：@按钮切换事件 - 添加 stopPropagation 阻止冒泡
-            document.querySelectorAll('.reply-at-toggle').forEach(toggle => {
-                toggle.addEventListener('click', (e) => {
-                    e.stopPropagation(); // 阻止事件冒泡到父级
-                    const isActive = toggle.classList.contains('active');
-                    const form = toggle.closest('.reply-form');
-                    const textarea = form.querySelector('textarea');
-                    const username = toggle.getAttribute('data-username');
-                    
-                    if (isActive) {
-                        toggle.classList.remove('active');
-                        toggle.classList.add('inactive');
-                        if (textarea) {
-                            textarea.placeholder = '回复...';
-                        }
-                    } else {
-                        toggle.classList.remove('inactive');
-                        toggle.classList.add('active');
-                        if (textarea) {
-                            textarea.placeholder = `回复 @${username} ...`;
-                        }
-                    }
-                });
-            });
-
-            // 绑定发送按钮
-            document.querySelectorAll('.reply-form button').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    e.stopPropagation();
-                    const parentId = btn.getAttribute('data-id');
-                    const form = btn.closest('.reply-form');
-                    const textarea = form.querySelector('textarea');
-                    const toggle = form.querySelector('.reply-at-toggle');
-                    const content = textarea.value.trim();
-                    if (!content) {
-                        alert('请输入回复内容');
-                        return;
-                    }
-                    const topComment = topComments.find(t => t.id == parentId);
-                    if (!topComment) return;
-
-                    const replyToUsername = toggle.classList.contains('active') ? topComment.username : '';
-
-                    await submitReply(parentId, topComment.user_id, replyToUsername, content);
-                    textarea.value = '';
-                    form.style.display = 'none';
-                });
-            });
-
-            attachContextMenu();
         }
 
-        function attachContextMenu() {
-            const commentItems = document.querySelectorAll('.comment-item, .reply-item');
-            commentItems.forEach(item => {
-                item.removeEventListener('contextmenu', handleContextMenu);
-                item.addEventListener('contextmenu', handleContextMenu);
-            });
-        }
+        // 事件委托：统一处理评论区所有动态元素
+        function initCommentEvents() {
+            const listDiv = document.getElementById('comment-list');
+            if (!listDiv) return;
 
-        // 🔴 修复2：删除/撤回时正确获取当前评论ID
-        function handleContextMenu(event) {
-            // 使用 currentTarget 获取绑定事件的元素，而不是 target
-            let element = event.currentTarget;
-            if (!element) return;
-
-            event.preventDefault();
-            if (currentMenu) {
-                currentMenu.remove();
-                currentMenu = null;
-            }
-
-            // 直接从当前元素获取评论ID（已经在 renderComments 中为每个评论元素设置了 data-comment-id）
-            const commentId = element.getAttribute('data-comment-id');
-            const commentUserId = element.getAttribute('data-user-id');
-            const commentUserRole = element.getAttribute('data-user-role');
-            const commentCreatedAt = parseInt(element.getAttribute('data-created-at'));
-
-            const currentUserId = localStorage.getItem('currentUserId');
-            const currentUserRole = localStorage.getItem('userRole');
-
-            const isOwner = (commentUserId === currentUserId);
-            const now = Date.now();
-            const isWithin5Min = (now - commentCreatedAt) <= 5 * 60 * 1000;
-
-            const canRecall = isOwner && isWithin5Min;
-            let canDelete = false;
-            if (currentUserRole === 'system') {
-                canDelete = true;
-            } else if (currentUserRole === 'admin') {
-                if (commentUserRole === 'user') {
-                    canDelete = true;
+            // 1. 回复按钮点击
+            listDiv.addEventListener('click', (e) => {
+                const btn = e.target.closest('.reply-button');
+                if (!btn) return;
+                e.stopPropagation();
+                const commentId = btn.getAttribute('data-id');
+                const form = document.getElementById(`reply-form-${commentId}`);
+                if (form) {
+                    form.style.display = form.style.display === 'none' ? 'block' : 'none';
                 }
-            }
-
-            // 判断是否是顶级评论（用于菜单显示回复选项）
-            const isTop = element.classList.contains('comment-item') && !element.classList.contains('reply-item');
-            let menuHtml = '<ul>';
-            if (isTop) {
-                menuHtml += `<li data-action="reply">回复</li>`;
-            }
-            menuHtml += `<li class="${!canRecall ? 'disabled' : ''}" data-action="recall">撤回</li>`;
-            menuHtml += `<li class="${!canDelete ? 'disabled' : ''}" data-action="delete">删除</li>`;
-            menuHtml += '</ul>';
-
-            const menu = document.createElement('div');
-            menu.className = 'comment-context-menu';
-            menu.innerHTML = menuHtml;
-            document.body.appendChild(menu);
-
-            const menuWidth = menu.offsetWidth;
-            const menuHeight = menu.offsetHeight;
-            const x = event.clientX;
-            const y = event.clientY;
-            const pos = getPosition(x, y, menuWidth, menuHeight);
-            menu.style.left = pos.left + 'px';
-            menu.style.top = pos.top + 'px';
-
-            menu.querySelectorAll('li').forEach(li => {
-                li.addEventListener('click', async (e) => {
-                    e.stopPropagation();
-                    const action = li.getAttribute('data-action');
-                    if (action === 'reply' && isTop) {
-                        const form = document.getElementById(`reply-form-${commentId}`);
-                        if (form) form.style.display = 'block';
-                        menu.remove();
-                        currentMenu = null;
-                    } else if (action === 'recall' && canRecall) {
-                        await deleteComment(commentId);
-                        menu.remove();
-                        currentMenu = null;
-                    } else if (action === 'delete' && canDelete) {
-                        await deleteComment(commentId);
-                        menu.remove();
-                        currentMenu = null;
-                    }
-                });
             });
 
-            const hideMenu = (e) => {
-                if (!menu.contains(e.target)) {
-                    menu.remove();
+            // 2. @ 按钮点击（切换状态）
+            listDiv.addEventListener('click', (e) => {
+                const toggle = e.target.closest('.reply-at-toggle');
+                if (!toggle) return;
+                e.stopPropagation();
+                const isActive = toggle.classList.contains('active');
+                const form = toggle.closest('.reply-form');
+                const textarea = form.querySelector('textarea');
+                const username = toggle.getAttribute('data-username');
+                if (isActive) {
+                    toggle.classList.remove('active');
+                    toggle.classList.add('inactive');
+                    if (textarea) textarea.placeholder = '回复...';
+                } else {
+                    toggle.classList.remove('inactive');
+                    toggle.classList.add('active');
+                    if (textarea) textarea.placeholder = `回复 @${username} ...`;
+                }
+            });
+
+            // 3. 发送按钮点击
+            listDiv.addEventListener('click', async (e) => {
+                const btn = e.target.closest('.reply-form button');
+                if (!btn) return;
+                e.stopPropagation();
+                const parentId = btn.getAttribute('data-id');
+                const form = btn.closest('.reply-form');
+                const textarea = form.querySelector('textarea');
+                const toggle = form.querySelector('.reply-at-toggle');
+                const content = textarea.value.trim();
+                if (!content) {
+                    alert('请输入回复内容');
+                    return;
+                }
+                const topComment = topComments.find(t => t.id == parentId);
+                if (!topComment) return;
+                const replyToUsername = toggle.classList.contains('active') ? topComment.username : '';
+                await submitReply(parentId, topComment.user_id, replyToUsername, content);
+                textarea.value = '';
+                form.style.display = 'none';
+            });
+
+            // 4. 右键菜单（桌面/移动端长按）
+            listDiv.addEventListener('contextmenu', (e) => {
+                const commentElem = e.target.closest('.comment-item, .reply-item');
+                if (!commentElem) return;
+                e.preventDefault();
+                if (currentMenu) {
+                    currentMenu.remove();
                     currentMenu = null;
-                    document.removeEventListener('click', hideMenu);
-                    document.removeEventListener('contextmenu', hideMenu);
                 }
-            };
-            setTimeout(() => {
-                document.addEventListener('click', hideMenu);
-                document.addEventListener('contextmenu', hideMenu);
-            }, 0);
 
-            currentMenu = menu;
+                const commentId = commentElem.getAttribute('data-comment-id');
+                const commentUserId = commentElem.getAttribute('data-user-id');
+                const commentUserRole = commentElem.getAttribute('data-user-role');
+                const commentCreatedAt = parseInt(commentElem.getAttribute('data-created-at'));
+
+                const currentUserId = localStorage.getItem('currentUserId');
+                const currentUserRole = localStorage.getItem('userRole');
+
+                const isOwner = (commentUserId === currentUserId);
+                const now = Date.now();
+                const isWithin5Min = (now - commentCreatedAt) <= 5 * 60 * 1000;
+
+                const canRecall = isOwner && isWithin5Min;
+                let canDelete = false;
+                if (currentUserRole === 'system') {
+                    canDelete = true;
+                } else if (currentUserRole === 'admin') {
+                    if (commentUserRole === 'user') {
+                        canDelete = true;
+                    }
+                }
+
+                const isTop = commentElem.classList.contains('comment-item') && !commentElem.classList.contains('reply-item');
+                let menuHtml = '<ul>';
+                if (isTop) {
+                    menuHtml += `<li data-action="reply">回复</li>`;
+                }
+                menuHtml += `<li class="${!canRecall ? 'disabled' : ''}" data-action="recall">撤回</li>`;
+                menuHtml += `<li class="${!canDelete ? 'disabled' : ''}" data-action="delete">删除</li>`;
+                menuHtml += '</ul>';
+
+                const menu = document.createElement('div');
+                menu.className = 'comment-context-menu';
+                menu.innerHTML = menuHtml;
+                document.body.appendChild(menu);
+
+                const menuWidth = menu.offsetWidth;
+                const menuHeight = menu.offsetHeight;
+                const x = e.clientX;
+                const y = e.clientY;
+                const pos = getPosition(x, y, menuWidth, menuHeight);
+                menu.style.left = pos.left + 'px';
+                menu.style.top = pos.top + 'px';
+
+                menu.querySelectorAll('li').forEach(li => {
+                    li.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        const action = li.getAttribute('data-action');
+                        if (action === 'reply' && isTop) {
+                            const form = document.getElementById(`reply-form-${commentId}`);
+                            if (form) form.style.display = 'block';
+                            menu.remove();
+                            currentMenu = null;
+                        } else if (action === 'recall' && canRecall) {
+                            await deleteComment(commentId);
+                            menu.remove();
+                            currentMenu = null;
+                        } else if (action === 'delete' && canDelete) {
+                            await deleteComment(commentId);
+                            menu.remove();
+                            currentMenu = null;
+                        }
+                    });
+                });
+
+                const hideMenu = (e) => {
+                    if (!menu.contains(e.target)) {
+                        menu.remove();
+                        currentMenu = null;
+                        document.removeEventListener('click', hideMenu);
+                        document.removeEventListener('contextmenu', hideMenu);
+                    }
+                };
+                setTimeout(() => {
+                    document.addEventListener('click', hideMenu);
+                    document.addEventListener('contextmenu', hideMenu);
+                }, 0);
+                currentMenu = menu;
+            });
+
+            // 移动端长按（使用 touchstart + timer）
+            let touchTimer = null;
+            let touchTarget = null;
+            listDiv.addEventListener('touchstart', (e) => {
+                const target = e.target.closest('.comment-item, .reply-item');
+                if (!target) return;
+                e.preventDefault();
+                touchTarget = target;
+                touchTimer = setTimeout(() => {
+                    const fakeEvent = { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+                    const contextEvent = new MouseEvent('contextmenu', fakeEvent);
+                    target.dispatchEvent(contextEvent);
+                }, 500);
+            });
+            listDiv.addEventListener('touchend', () => {
+                if (touchTimer) clearTimeout(touchTimer);
+                touchTarget = null;
+            });
+            listDiv.addEventListener('touchmove', () => {
+                if (touchTimer) clearTimeout(touchTimer);
+                touchTarget = null;
+            });
         }
 
+        // 提交回复
         async function submitReply(parentId, replyToUserId, replyToUsername, content) {
             try {
                 const res = await fetch('/api/comments', {
@@ -749,6 +760,7 @@
             }
         }
 
+        // 删除评论
         async function deleteComment(commentId) {
             try {
                 const res = await fetch(`/api/comments?id=${commentId}`, {
@@ -769,6 +781,7 @@
             }
         }
 
+        // 通用转义
         function escapeHtml(str) {
             if (!str) return '';
             return str.replace(/[&<>]/g, function(m) {
@@ -779,52 +792,41 @@
             });
         }
 
-        // ========== 评论输入框 ==========
-        const container = document.getElementById('comment-form-container');
-        if (isLoggedIn) {
-            container.innerHTML = `
-                <div class="comment-form">
-                    <textarea id="commentContent" rows="3" placeholder="写下你的评论..."></textarea>
-                    <button id="submitCommentBtn">发表评论</button>
-                    <div id="commentError" class="comment-error"></div>
-                </div>
-            `;
-            document.getElementById('submitCommentBtn').addEventListener('click', async () => {
-                const content = document.getElementById('commentContent').value.trim();
-                const errorDiv = document.getElementById('commentError');
-                if (!content) {
-                    errorDiv.innerText = '评论内容不能为空';
-                    return;
-                }
-                errorDiv.innerText = '';
-                try {
-                    const res = await fetch('/api/comments', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-Auth-UserId': currentUserId,
-                            'X-Auth-Role': currentUserRole
-                        },
-                        body: JSON.stringify({ comicId, content })
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                        document.getElementById('commentContent').value = '';
-                        await loadComments(comicId);
-                    } else {
-                        errorDiv.innerText = data.error || '发表失败';
-                    }
-                } catch (err) {
-                    errorDiv.innerText = '网络错误，请稍后重试';
-                }
-            });
-        } else {
-            container.innerHTML = `
-                <div class="login-prompt">
-                    <p>请先 <a href="login.html">登录</a> 后发表评论。</p>
-                </div>
-            `;
+        // 初始化评论区（在页面加载和评论刷新后调用）
+        function initComments() {
+            // 评论加载和渲染后，绑定事件
+            initCommentEvents();
         }
+
+        // 覆盖原有的 loadComments 调用，确保事件绑定
+        // 在页面加载完成后调用一次
+        (function() {
+            // 保留原有 loadComments 的引用，但我们需要在渲染后绑定事件
+            // 由于原代码中已有 loadComments 和 renderComments，我们只需在 loadComments 调用后执行 initComments
+            // 但为了方便，我们直接修改原 loadComments 的末尾（但为了不破坏现有结构，我们这里在全局设置一个回调）
+            // 实际上，我们已经在 renderComments 函数内部没有绑定事件，而是将事件绑定委托到外部。
+            // 所以需要在第一次 loadComments 完成后手动调用 initComments。
+            // 我们可以在 setTimeout 中调用，确保 DOM 已渲染。
+            // 但由于 loadComments 是异步的，我们可以在 loadComments 函数内部最后调用 initComments。
+            // 为了避免重复绑定，我们只绑定一次。
+            let commentsInitialized = false;
+            const originalLoadComments = loadComments;
+            window.loadComments = async function(comicId) {
+                await originalLoadComments(comicId);
+                if (!commentsInitialized) {
+                    initComments();
+                    commentsInitialized = true;
+                }
+            };
+            // 如果已经调用了 loadComments（在页面加载时），确保在它完成后绑定
+            // 由于 loadComments 已在页面加载时调用，我们延迟一下
+            setTimeout(() => {
+                if (!commentsInitialized) {
+                    initComments();
+                    commentsInitialized = true;
+                }
+            }, 100);
+        })();
     </script>
 </body>
 </html>
