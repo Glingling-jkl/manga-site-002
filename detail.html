@@ -25,7 +25,6 @@
             gap: 12px;
             margin: 20px 0;
         }
-        /* 每个信息卡片 */
         .comic-info-card {
             background: #f8f9fa;
             border-radius: 12px;
@@ -43,11 +42,9 @@
             display: inline-block;
             min-width: 52px;
         }
-        /* 标签卡片独占一整行 */
         .comic-info-card.tags-card {
             grid-column: 1 / -1;
         }
-        /* 移动端适配：缩小字体、内边距，保持两列 */
         @media (max-width: 768px) {
             .comic-info-grid {
                 gap: 8px;
@@ -61,12 +58,7 @@
                 margin-right: 6px;
                 font-size: 0.75rem;
             }
-            /* 确保标签卡片仍然独占一行 */
-            .comic-info-card.tags-card {
-                grid-column: 1 / -1;
-            }
         }
-        /* 非常小的屏幕（如宽度<480px）进一步缩小 */
         @media (max-width: 480px) {
             .comic-info-grid {
                 gap: 6px;
@@ -81,7 +73,7 @@
                 font-size: 0.7rem;
             }
         }
-        /* 评论区样式保持不变 */
+        /* 评论区样式（恢复权限组显示） */
         .comments-section {
             margin-top: 40px;
             text-align: left;
@@ -184,8 +176,14 @@
             border-radius: 8px;
             display: none;
         }
+        .reply-form .reply-input-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
         .reply-form textarea {
-            width: 100%;
+            flex: 1;
             padding: 8px;
             border-radius: 8px;
             border: 1px solid #ddd;
@@ -193,7 +191,6 @@
             font-size: 0.85rem;
         }
         .reply-form button {
-            margin-top: 5px;
             background: #0070f3;
             color: white;
             border: none;
@@ -204,6 +201,27 @@
         }
         .reply-form button:hover {
             background: #0051b3;
+        }
+        .reply-at-toggle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #0070f3;
+            color: white;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+            flex-shrink: 0;
+        }
+        .reply-at-toggle.active {
+            background: #0070f3;
+        }
+        .reply-at-toggle.inactive {
+            background: #aaa;
         }
         .comment-form {
             margin-top: 20px;
@@ -374,6 +392,13 @@
             }
         }
 
+        // 提取纯用户名（去除括号及角色后缀）
+        function extractUsername(uploaderStr) {
+            if (!uploaderStr) return '';
+            const match = uploaderStr.match(/^([^(]+)/);
+            return match ? match[1].trim() : uploaderStr;
+        }
+
         function renderComic(comic) {
             const tags = comic.tags && Array.isArray(comic.tags) ? comic.tags.join(' · ') : '无';
             let warningHtml = '';
@@ -381,11 +406,13 @@
                 warningHtml = '<div class="adult-warning">⚠️ 不安全性内容</div>';
             }
             
-            // 构建独立卡片网格
+            // 处理上传者：只显示用户名，去掉角色
+            const uploaderName = extractUsername(comic.uploader);
+            
             const infoHtml = `
                 <div class="comic-info-grid">
                     <div class="comic-info-card"><strong>作者：</strong> ${escapeHtml(comic.author)}</div>
-                    <div class="comic-info-card"><strong>上传者：</strong> ${escapeHtml(comic.uploader)}</div>
+                    <div class="comic-info-card"><strong>上传者：</strong> ${escapeHtml(uploaderName)}</div>
                     <div class="comic-info-card"><strong>章数：</strong> ${comic.chapters} 话</div>
                     <div class="comic-info-card"><strong>总页数：</strong> ${comic.pages} 页</div>
                     <div class="comic-info-card"><strong>上传时间：</strong> ${new Date(comic.uploaded_at).toLocaleDateString()}</div>
@@ -490,7 +517,10 @@
                         </div>
                         <div class="comment-content">${escapeHtml(top.content)}</div>
                         <div class="reply-form" id="reply-form-${top.id}" style="display: none;">
-                            <textarea rows="2" placeholder="回复 @${escapeHtml(top.username)} ..."></textarea>
+                            <div class="reply-input-row">
+                                <div class="reply-at-toggle active" data-id="${top.id}" data-username="${escapeHtml(top.username)}">@</div>
+                                <textarea rows="2" placeholder="回复 @${escapeHtml(top.username)} ..."></textarea>
+                            </div>
                             <button data-id="${top.id}">发送</button>
                         </div>
                 `;
@@ -530,22 +560,56 @@
                 });
             });
 
-            // 绑定发送按钮
+            // 绑定@按钮切换事件
+            document.querySelectorAll('.reply-at-toggle').forEach(toggle => {
+                toggle.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const isActive = toggle.classList.contains('active');
+                    if (isActive) {
+                        toggle.classList.remove('active');
+                        toggle.classList.add('inactive');
+                        const form = toggle.closest('.reply-form');
+                        const textarea = form.querySelector('textarea');
+                        if (textarea) {
+                            textarea.placeholder = `回复...`;
+                        }
+                    } else {
+                        toggle.classList.remove('inactive');
+                        toggle.classList.add('active');
+                        const form = toggle.closest('.reply-form');
+                        const textarea = form.querySelector('textarea');
+                        const username = toggle.getAttribute('data-username');
+                        if (textarea) {
+                            textarea.placeholder = `回复 @${username} ...`;
+                        }
+                    }
+                });
+            });
+
+            // 绑定发送按钮（根据@按钮状态决定是否自动添加@）
             document.querySelectorAll('.reply-form button').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
                     e.stopPropagation();
                     const parentId = btn.getAttribute('data-id');
-                    const textarea = btn.parentElement.querySelector('textarea');
-                    const content = textarea.value.trim();
+                    const form = btn.closest('.reply-form');
+                    const textarea = form.querySelector('textarea');
+                    const toggle = form.querySelector('.reply-at-toggle');
+                    let content = textarea.value.trim();
                     if (!content) {
                         alert('请输入回复内容');
                         return;
                     }
                     const topComment = topComments.find(t => t.id == parentId);
                     if (!topComment) return;
+                    if (toggle.classList.contains('active')) {
+                        const mention = `@${topComment.username} `;
+                        if (!content.startsWith(mention)) {
+                            content = mention + content;
+                        }
+                    }
                     await submitReply(parentId, topComment.user_id, topComment.username, content);
                     textarea.value = '';
-                    btn.parentElement.style.display = 'none';
+                    form.style.display = 'none';
                 });
             });
 
@@ -758,4 +822,4 @@
         }
     </script>
 </body>
-</html>
+    </html>
