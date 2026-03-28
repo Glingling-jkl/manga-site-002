@@ -239,7 +239,196 @@
             });
         }
 
-        // 带进度回调的 fetch
+        // 带超时和重试的 fetch
+        async function fetchWithTimeout(url, options = {}, timeout = 30000) {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), timeout);
+            try {
+                const response = await fetch(url, {
+                    ...options,
+                    signal: controller.signal,
+                    mode: 'cors',
+                    credentials: 'omit'
+                });
+                clearTimeout(id);
+                return response;
+            } catch (err) {
+                clearTimeout(id);
+                throw err;
+            }
+        }
+
+        // 加载单个 ZIP 并返回图片元素数组（不直接渲染）
+        async function extractZipImages(file) {
+            const zip = await JSZip.loadAsync(file);
+            const imageFiles = Object.keys(zip.files)
+                .filter(name => /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(name))
+                .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+            if (imageFiles.length === 0) {
+                throw new Error('压缩包中没有图片');
+            }
+            const images = [];
+            for (let name of imageFiles) {
+                const blob = await zip.files[name].async('blob');
+                const url = URL.createObjectURL(blob);
+                const img = document.createElement('img');
+                img.src = url;
+                img.className = 'page-img';
+                img.alt = name;
+                images.push(img);
+            }
+            return images;
+        }
+
+        // 下载单个分片并提取图片
+        async function downloadAndExtractPart(url, partIndex, retryCount = 0) {
+            const maxRetries = 2;
+            try {
+                console.log(`正在下载分片 ${partIndex}: ${url}`);
+                const response = await fetchWithTimeout(url, {}, 30000);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status} ${response.statusText}`);
+                }
+                const blob = await response.blob();
+                const file = new File([blob], `part_${partIndex}.zip`, { type: 'application/zip' });
+                const images = await extractZipImages(file);
+                return images;
+            } catch (err) {
+                if (retryCount < maxRetries) {
+                    console.warn(`分片 ${partIndex} 下载失败，重试 ${retryCount + 1}/${maxRetries}: ${err.message}`);
+                    await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+                    return downloadAndExtractPart(url, partIndex, retryCount + 1);
+                }
+                throw new Error(`分片 ${partIndex} 下载失败: ${err.message}`);
+            }
+        }
+
+        // 主加载逻辑
+        if (zipUrl) {
+            (async () => {
+                uploadArea.style.display = 'none';
+                progressContainer.style.display = 'block';
+                progressFill.style.width = '0%';
+                progressPercent.innerText = '0%';
+                progressMessage.innerText = '加载漫画信息...';
+                threadInfo.innerText = '';
+
+                try {
+                    // 判断是单文件还是分片
+                    const isSplit = zipUrl.includes('/info.json');
+                    
+                    if (!isSplit) {
+                        // 旧版单文件漫画：直接下载 ZIP
+                        progressMessage.innerText = '下载漫画中...';
+                        const proxyUrl = `/api/proxy?url=${encodeURIComponent(zipUrl)}`;
+                        console.log('加载单文件 ZIP (proxy):', proxyUrl);
+                        
+                        let lastPercent = 0;
+                        const onProgress = (received, total) => {
+                            if (total > 0) {
+                                const percent = Math.round((received / total) * 100);
+                                if (percent !== lastPercent) {
+                                    lastPercent = percent;
+                                    progressFill.style.width = percent + '%';
+                                    progressPercent.innerText = percent + '%';
+                                    console.log(`单文件下载进度: ${percent}%`);
+                                }
+                            }
+                        };
+                        
+                        // 使用带进度的 fetch
+                        const arrayBuffer = await fetchWithProgress(proxyUrl, onProgress, {}, 60000);
+                        const blob = new Blob([arrayBuffer], { type: 'application/zip' });
+                        const file = new File([blob], 'comic.zip', { type: 'application/zip' });
+                        const images = await extractZipImages(file);
+                        // 直接渲染所有图片
+                        viewer.innerHTML = '';
+                        for (const img of images) {
+                            viewer.appendChild(img);
+                        }
+                        progressContainer.style.display = 'none';
+                        return;
+                    }
+                    
+                    // 分片漫画流程
+                    const infoUrl = zipUrl;
+                    const proxyInfoUrl = `/api/proxy?url=${encodeURIComponent(infoUrl)}`;
+                    console.log('加载 info.json (proxy):', proxyInfoUrl);
+                    
+                    const infoResponse = await fetchWithTimeout(proxyInfoUrl, {}, 10000);
+                    if (!infoResponse.ok) {
+                        throw new Error(`无法加载 info.json (HTTP ${infoResponse.status})`);
+                    }
+                    
+                    const info = await infoResponse.json();
+                    const baseUrl = zipUrl.substring(0, zipUrl.lastIndexOf('/'));
+                    threadInfo.innerText = `分片模式 (${info.total_parts} 个分片)`;
+                    progressMessage.innerText = '下载中...';
+                    
+                    viewer.innerHTML = ''; // 清空，等待渲染
+                    
+                    // 存储每个分片解压后的图片列表
+                    const partImages = new Array(info.total_parts).fill(null);
+                    let renderedUpTo = 0; // 已渲染的最大分片索引（从0开始）
+                    let hasError = false;
+                    
+                    // 渲染函数：按顺序渲染可用的分片
+                    function tryRender() {
+                        while (renderedUpTo < partImages.length && partImages[renderedUpTo] !== null) {
+                            const images = partImages[renderedUpTo];
+                            for (const img of images) {
+                                viewer.appendChild(img);
+                            }
+                            renderedUpTo++;
+                            // 更新总进度
+                            const percent = Math.round((renderedUpTo / info.total_parts) * 100);
+                            progressFill.style.width = percent + '%';
+                            progressPercent.innerText = percent + '%';
+                            console.log(`总进度: ${percent}%`);
+                        }
+                        if (renderedUpTo === info.total_parts) {
+                            progressContainer.style.display = 'none';
+                        }
+                    }
+                    
+                    // 下载所有分片（并发）
+                    const downloadPromises = [];
+                    for (let i = 0; i < info.parts.length; i++) {
+                        const partIndex = i + 1;
+                        const rawPartUrl = `${baseUrl}/zips/${info.parts[i]}`;
+                        const partUrl = `/api/proxy?url=${encodeURIComponent(rawPartUrl)}`;
+                        const promise = downloadAndExtractPart(partUrl, partIndex)
+                            .then(images => {
+                                if (hasError) return;
+                                partImages[partIndex - 1] = images;
+                                console.log(`分片 ${partIndex} 下载完成`);
+                                // 尝试渲染（可能触发顺序渲染）
+                                tryRender();
+                            })
+                            .catch(err => {
+                                if (!hasError) {
+                                    hasError = true;
+                                    throw err;
+                                }
+                            });
+                        downloadPromises.push(promise);
+                    }
+                    
+                    // 等待所有下载完成（但渲染已异步处理）
+                    await Promise.all(downloadPromises);
+                    
+                    // 最终检查：如果还有未渲染的分片（理论上已完成），再渲染一次
+                    tryRender();
+                    
+                } catch (err) {
+                    console.error('加载失败:', err);
+                    progressContainer.style.display = 'none';
+                    showError(err.message, err.stack || '无详细信息');
+                }
+            })();
+        }
+
+        // 带进度回调的 fetch（用于单文件）
         async function fetchWithProgress(url, onProgress, options = {}, timeout = 30000) {
             const controller = new AbortController();
             const id = setTimeout(() => controller.abort(), timeout);
@@ -285,185 +474,6 @@
                 }
                 
                 return allChunks.buffer;
-            } catch (err) {
-                clearTimeout(id);
-                throw err;
-            }
-        }
-
-        // 加载单个 ZIP 并解压
-        async function loadZipFile(file) {
-            try {
-                const zip = await JSZip.loadAsync(file);
-                const imageFiles = Object.keys(zip.files)
-                    .filter(name => /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(name))
-                    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
-                if (imageFiles.length === 0) {
-                    viewer.innerHTML += '<p>压缩包中没有图片</p><button class="retry-button" onclick="window.location.reload()">重新导入</button>';
-                    return;
-                }
-                for (let name of imageFiles) {
-                    const blob = await zip.files[name].async('blob');
-                    const url = URL.createObjectURL(blob);
-                    const img = document.createElement('img');
-                    img.src = url;
-                    img.className = 'page-img';
-                    img.alt = name;
-                    viewer.appendChild(img);
-                }
-            } catch (err) {
-                viewer.innerHTML += `<p style="color:red;">解压失败：${err.message}</p>`;
-            }
-        }
-
-        // 下载单个分片（带重试和进度）
-        async function downloadPart(url, partIndex, updateProgress, partNumber, totalParts) {
-            const maxRetries = 2;
-            let retryCount = 0;
-            
-            while (retryCount <= maxRetries) {
-                try {
-                    console.log(`正在下载分片 ${partIndex}: ${url}`);
-                    
-                    // 定义分片进度回调
-                    const onPartProgress = (received, total) => {
-                        const partPercent = (received / total) * 100;
-                        updateProgress(partNumber, totalParts, partPercent);
-                    };
-                    
-                    const arrayBuffer = await fetchWithProgress(url, onPartProgress, {}, 30000);
-                    const blob = new Blob([arrayBuffer], { type: 'application/zip' });
-                    const file = new File([blob], `part_${partIndex}.zip`, { type: 'application/zip' });
-                    await loadZipFile(file);
-                    
-                    // 下载成功，标记为完成
-                    updateProgress(partNumber, totalParts, 100);
-                    return;
-                } catch (err) {
-                    if (retryCount < maxRetries) {
-                        console.warn(`分片 ${partIndex} 下载失败，重试 ${retryCount + 1}/${maxRetries}: ${err.message}`);
-                        await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
-                        retryCount++;
-                    } else {
-                        throw new Error(`分片 ${partIndex} 下载失败: ${err.message}`);
-                    }
-                }
-            }
-        }
-
-        // 主加载逻辑
-        if (zipUrl) {
-            (async () => {
-                uploadArea.style.display = 'none';
-                progressContainer.style.display = 'block';
-                progressFill.style.width = '0%';
-                progressPercent.innerText = '0%';
-                progressMessage.innerText = '加载漫画信息...';
-                threadInfo.innerText = '';
-
-                try {
-                    // 判断是单文件还是分片
-                    const isSplit = zipUrl.includes('/info.json');
-                    
-                    if (!isSplit) {
-                        // 旧版单文件漫画：直接下载 ZIP，带进度条
-                        progressMessage.innerText = '下载漫画中...';
-                        const proxyUrl = `/api/proxy?url=${encodeURIComponent(zipUrl)}`;
-                        console.log('加载单文件 ZIP (proxy):', proxyUrl);
-                        
-                        let lastPercent = 0;
-                        const onProgress = (received, total) => {
-                            if (total > 0) {
-                                const percent = Math.round((received / total) * 100);
-                                if (percent !== lastPercent) {
-                                    lastPercent = percent;
-                                    progressFill.style.width = percent + '%';
-                                    progressPercent.innerText = percent + '%';
-                                    console.log(`单文件下载进度: ${percent}%`);
-                                }
-                            }
-                        };
-                        
-                        const arrayBuffer = await fetchWithProgress(proxyUrl, onProgress, {}, 60000);
-                        const blob = new Blob([arrayBuffer], { type: 'application/zip' });
-                        const file = new File([blob], 'comic.zip', { type: 'application/zip' });
-                        progressContainer.style.display = 'none';
-                        await loadZipFile(file);
-                        return;
-                    }
-                    
-                    // 分片漫画流程
-                    const infoUrl = zipUrl;
-                    const proxyInfoUrl = `/api/proxy?url=${encodeURIComponent(infoUrl)}`;
-                    console.log('加载 info.json (proxy):', proxyInfoUrl);
-                    
-                    const infoResponse = await fetchWithTimeout(proxyInfoUrl, {}, 10000);
-                    if (!infoResponse.ok) {
-                        throw new Error(`无法加载 info.json (HTTP ${infoResponse.status})`);
-                    }
-                    
-                    const info = await infoResponse.json();
-                    const baseUrl = zipUrl.substring(0, zipUrl.lastIndexOf('/'));
-                    threadInfo.innerText = `分片模式 (${info.total_parts} 个分片)`;
-                    progressMessage.innerText = '下载中...';
-                    
-                    viewer.innerHTML = '';
-                    
-                    // 每个分片的进度
-                    const partProgress = new Array(info.total_parts).fill(0);
-                    
-                    // 更新总进度
-                    const updateTotalProgress = () => {
-                        const totalPercent = partProgress.reduce((sum, p) => sum + p, 0) / info.total_parts;
-                        progressFill.style.width = totalPercent + '%';
-                        progressPercent.innerText = Math.round(totalPercent) + '%';
-                    };
-                    
-                    // 更新单个分片进度
-                    const updateProgress = (partNumber, totalParts, percent) => {
-                        partProgress[partNumber - 1] = percent;
-                        updateTotalProgress();
-                        console.log(`分片 ${partNumber}/${totalParts} 进度: ${percent}%`);
-                    };
-                    
-                    // 并发下载所有分片
-                    const CONCURRENT_LIMIT = 3;
-                    const parts = [];
-                    for (let i = 0; i < info.parts.length; i++) {
-                        const rawPartUrl = `${baseUrl}/zips/${info.parts[i]}`;
-                        const partUrl = `/api/proxy?url=${encodeURIComponent(rawPartUrl)}`;
-                        parts.push({ url: partUrl, index: i + 1 });
-                    }
-                    
-                    // 使用 Promise 池控制并发
-                    for (let i = 0; i < parts.length; i += CONCURRENT_LIMIT) {
-                        const batch = parts.slice(i, i + CONCURRENT_LIMIT);
-                        const batchPromises = batch.map(part => downloadPart(part.url, part.index, updateProgress, part.index, info.total_parts));
-                        await Promise.all(batchPromises);
-                    }
-                    
-                    progressContainer.style.display = 'none';
-                } catch (err) {
-                    console.error('加载失败:', err);
-                    progressContainer.style.display = 'none';
-                    showError(err.message, err.stack || '无详细信息');
-                }
-            })();
-        }
-
-        // 带超时的 fetch（用于小文件）
-        async function fetchWithTimeout(url, options = {}, timeout = 30000) {
-            const controller = new AbortController();
-            const id = setTimeout(() => controller.abort(), timeout);
-            try {
-                const response = await fetch(url, {
-                    ...options,
-                    signal: controller.signal,
-                    mode: 'cors',
-                    credentials: 'omit'
-                });
-                clearTimeout(id);
-                return response;
             } catch (err) {
                 clearTimeout(id);
                 throw err;
@@ -576,7 +586,14 @@
             if (!file) return;
             uploadArea.style.display = 'none';
             viewer.innerHTML = '';
-            await loadZipFile(file);
+            try {
+                const images = await extractZipImages(file);
+                for (const img of images) {
+                    viewer.appendChild(img);
+                }
+            } catch (err) {
+                alert('解压失败：' + err.message);
+            }
         });
     </script>
 </body>
