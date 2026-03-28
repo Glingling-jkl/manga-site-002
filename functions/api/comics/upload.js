@@ -91,7 +91,7 @@ export async function onRequestPost(context) {
         // 写入 KV 缓存封面
         try {
             const coverKey = `file:${coverUrl}`;
-            await env.FILE_CACHE.put(coverKey, coverArrayBuffer, { expirationTtl: 2592000 });
+            await env.FILE_CACHE.put(coverKey, coverArrayBuffer);
         } catch (kvErr) {
             console.error('封面写入 KV 失败:', kvErr);
         }
