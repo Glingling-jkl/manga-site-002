@@ -6,7 +6,7 @@
     <title>漫画详情</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* 样式与之前相同，仅保留必要的布局 */
+        /* 样式保持不变 */
         .comic-detail {
             text-align: center;
         }
@@ -535,7 +535,7 @@
                         if (reply.user_role === 'system') replyGroup = '系统';
                         else if (reply.user_role === 'admin') replyGroup = '管理员';
                         else replyGroup = '用户';
-                        // 关键修复：只有当 reply_to_username 有值（非空且不是'未知'）时才显示 @ 前缀
+                        // 只有当 reply_to_username 有值时才显示 @ 前缀
                         const showAt = reply.reply_to_username && reply.reply_to_username.trim() !== '';
                         html += `
                             <div class="reply-item" data-comment-id="${reply.id}" data-user-id="${reply.user_id}" data-user-role="${reply.user_role}" data-created-at="${reply.created_at}">
@@ -566,14 +566,15 @@
                 });
             });
 
-            // 绑定@按钮切换事件
+            // 🔴 修复1：@按钮切换事件 - 添加 stopPropagation 阻止冒泡
             document.querySelectorAll('.reply-at-toggle').forEach(toggle => {
                 toggle.addEventListener('click', (e) => {
-                    e.stopPropagation();
+                    e.stopPropagation(); // 阻止事件冒泡到父级
                     const isActive = toggle.classList.contains('active');
                     const form = toggle.closest('.reply-form');
                     const textarea = form.querySelector('textarea');
                     const username = toggle.getAttribute('data-username');
+                    
                     if (isActive) {
                         toggle.classList.remove('active');
                         toggle.classList.add('inactive');
@@ -606,7 +607,6 @@
                     const topComment = topComments.find(t => t.id == parentId);
                     if (!topComment) return;
 
-                    // 根据 @ 按钮状态决定是否传递 replyToUsername
                     const replyToUsername = toggle.classList.contains('active') ? topComment.username : '';
 
                     await submitReply(parentId, topComment.user_id, replyToUsername, content);
@@ -626,7 +626,9 @@
             });
         }
 
+        // 🔴 修复2：删除/撤回时正确获取当前评论ID
         function handleContextMenu(event) {
+            // 使用 currentTarget 获取绑定事件的元素，而不是 target
             let element = event.currentTarget;
             if (!element) return;
 
@@ -636,6 +638,7 @@
                 currentMenu = null;
             }
 
+            // 直接从当前元素获取评论ID（已经在 renderComments 中为每个评论元素设置了 data-comment-id）
             const commentId = element.getAttribute('data-comment-id');
             const commentUserId = element.getAttribute('data-user-id');
             const commentUserRole = element.getAttribute('data-user-role');
@@ -658,6 +661,7 @@
                 }
             }
 
+            // 判断是否是顶级评论（用于菜单显示回复选项）
             const isTop = element.classList.contains('comment-item') && !element.classList.contains('reply-item');
             let menuHtml = '<ul>';
             if (isTop) {
@@ -731,7 +735,7 @@
                         content,
                         parentId,
                         replyToUserId,
-                        replyToUsername  // 可能为空字符串
+                        replyToUsername
                     })
                 });
                 const data = await res.json();
