@@ -18,6 +18,43 @@
             font-size: 1.2rem;
             margin-top: 20px;
         }
+        /* 新增：信息网格布局 */
+        .comic-info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px 20px;
+            margin: 20px 0;
+            text-align: left;
+            background: #f9f9f9;
+            padding: 16px;
+            border-radius: 12px;
+        }
+        .comic-info-item {
+            font-size: 0.9rem;
+            line-height: 1.4;
+            word-break: break-word;
+        }
+        .comic-info-item strong {
+            color: #333;
+            font-weight: 600;
+            margin-right: 6px;
+        }
+        /* 标签独占一整行 */
+        .comic-info-tags {
+            grid-column: 1 / -1;
+            margin-top: 4px;
+        }
+        /* 响应式：小屏幕时单列 */
+        @media (max-width: 600px) {
+            .comic-info-grid {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+            .comic-info-tags {
+                grid-column: auto;
+            }
+        }
+        /* 原有评论区样式保持不变 */
         .comments-section {
             margin-top: 40px;
             text-align: left;
@@ -311,20 +348,29 @@
         }
 
         function renderComic(comic) {
-            const tags = comic.tags && Array.isArray(comic.tags) ? comic.tags.join(' · ') : '';
+            const tags = comic.tags && Array.isArray(comic.tags) ? comic.tags.join(' · ') : '无';
             let warningHtml = '';
             if (comic.is_adult === 'yes') {
                 warningHtml = '<div class="adult-warning">⚠️ 不安全性内容</div>';
             }
+            
+            // 构建信息网格
+            const infoHtml = `
+                <div class="comic-info-grid">
+                    <div class="comic-info-item"><strong>作者：</strong> ${escapeHtml(comic.author)}</div>
+                    <div class="comic-info-item"><strong>上传者：</strong> ${escapeHtml(comic.uploader)}</div>
+                    <div class="comic-info-item"><strong>章数：</strong> ${comic.chapters} 话</div>
+                    <div class="comic-info-item"><strong>总页数：</strong> ${comic.pages} 页</div>
+                    <div class="comic-info-item"><strong>上传时间：</strong> ${new Date(comic.uploaded_at).toLocaleDateString()}</div>
+                    <div class="comic-info-item comic-info-tags"><strong>标签：</strong> ${escapeHtml(tags)}</div>
+                </div>
+            `;
+            
             const html = `
                 <img id="cover-img" data-src="${comic.cover_url}" alt="${comic.title}">
-                <h1>${comic.title}</h1>
-                <p>作者：${comic.author}</p>
-                <p>上传者：${comic.uploader}</p>
-                <p>${comic.chapters} 话 · ${comic.pages} 页</p>
-                <p>标签：${tags || '无'}</p>
-                <p>上传时间：${new Date(comic.uploaded_at).toLocaleDateString()}</p>
-                <p>${comic.description || ''}</p>
+                <h1>${escapeHtml(comic.title)}</h1>
+                ${infoHtml}
+                <p>${escapeHtml(comic.description || '')}</p>
                 <button onclick="startReading('${comic.zip_url}')">📖 开始阅读</button>
                 ${warningHtml}
             `;
@@ -476,25 +522,23 @@
                 });
             });
 
-            // 绑定右键/长按菜单（只使用 contextmenu 事件）
+            // 绑定右键/长按菜单
             attachContextMenu();
         }
 
         function attachContextMenu() {
             const commentItems = document.querySelectorAll('.comment-item, .reply-item');
             commentItems.forEach(item => {
-                // 移除旧事件避免重复
                 item.removeEventListener('contextmenu', handleContextMenu);
                 item.addEventListener('contextmenu', handleContextMenu);
             });
         }
 
         function handleContextMenu(event) {
-            // 获取被点击的元素（可能是 .comment-item 或 .reply-item）
             let element = event.currentTarget;
             if (!element) return;
 
-            event.preventDefault(); // 阻止系统菜单
+            event.preventDefault();
 
             if (currentMenu) {
                 currentMenu.remove();
@@ -631,6 +675,7 @@
         }
 
         function escapeHtml(str) {
+            if (!str) return '';
             return str.replace(/[&<>]/g, function(m) {
                 if (m === '&') return '&amp;';
                 if (m === '<') return '&lt;';
@@ -686,4 +731,4 @@
         }
     </script>
 </body>
-    </html>
+</html>
