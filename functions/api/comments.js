@@ -11,7 +11,7 @@ export async function onRequestGet(context) {
         const { results } = await env.DB.prepare(
             `SELECT id, user_id, username, user_role, content, 
                     CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at_ms,
-                    parent_id, reply_to_user_id, reply_to_username
+                    parent_id
              FROM comments WHERE comic_id = ? 
              ORDER BY created_at ASC`
         ).bind(comicId).all();
@@ -31,7 +31,7 @@ export async function onRequestPost(context) {
     }
 
     try {
-        const { comicId, content, parentId, replyToUserId, replyToUsername } = await request.json();
+        const { comicId, content, parentId, replyToUserId } = await request.json();
         if (!comicId || !content) {
             return Response.json({ success: false, error: '缺少参数' }, { status: 400 });
         }
@@ -48,7 +48,6 @@ export async function onRequestPost(context) {
 
         let parentIdValue = 0;
         let replyToUserIdValue = null;
-        let replyToUsernameValue = null;
 
         if (parentId && parentId > 0) {
             const parent = await env.DB.prepare(
@@ -62,15 +61,13 @@ export async function onRequestPost(context) {
             }
             parentIdValue = parentId;
             replyToUserIdValue = replyToUserId || parent.user_id;
-            replyToUsernameValue = replyToUsername || parent.username;
         }
 
-        // 直接存储前端传来的 content（不做任何修改）
         const result = await env.DB.prepare(
             `INSERT INTO comments 
-             (comic_id, user_id, username, user_role, content, parent_id, reply_to_user_id, reply_to_username) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-        ).bind(comicId, userId, user.username, user.role, content, parentIdValue, replyToUserIdValue, replyToUsernameValue)
+             (comic_id, user_id, username, user_role, content, parent_id, reply_to_user_id) 
+             VALUES (?, ?, ?, ?, ?, ?, ?)`
+        ).bind(comicId, userId, user.username, user.role, content, parentIdValue, replyToUserIdValue)
          .run();
 
         return Response.json({ success: true, id: result.meta.last_row_id });
