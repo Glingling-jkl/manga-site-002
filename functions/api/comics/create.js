@@ -19,7 +19,7 @@ export async function onRequestPost(context) {
         const ownerRole = formData.get('owner_role') || 'user';
         const isAdult = formData.get('is_adult') === 'yes' ? 'yes' : 'no';
         const totalParts = parseInt(formData.get('total_parts') || '0');
-        const coverFile = formData.get('cover'); // 新增封面文件
+        const coverFile = formData.get('cover');
 
         if (!title || !author) {
             return Response.json({ success: false, error: '标题和作者不能为空' }, { status: 400 });
@@ -66,7 +66,7 @@ export async function onRequestPost(context) {
         const rawBase = `https://raw.githubusercontent.com/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/${branch}`;
         const coverUrl = `${rawBase}/${coverFileName}`;
 
-        // 写入 KV 缓存封面（永久保存，无 TTL）
+        // 写入 KV 缓存封面（永久保存）
         try {
             const coverKey = `file:${coverUrl}`;
             await env.FILE_CACHE.put(coverKey, coverArrayBuffer);
@@ -75,7 +75,7 @@ export async function onRequestPost(context) {
             console.error('封面写入 KV 失败:', kvErr);
         }
 
-        // 插入数据库，包含封面 URL
+        // 插入数据库
         const result = await env.DB.prepare(
             `INSERT INTO comics 
             (title, author, uploader, tags, chapters, pages, cover_url, description, owner_role, is_adult, total_parts) 
