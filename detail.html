@@ -18,7 +18,7 @@
             font-size: 1.2rem;
             margin-top: 20px;
         }
-        /* 信息网格 - 独立卡片布局 */
+        /* 信息网格 - 独立卡片布局，移动端也保持两列 */
         .comic-info-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -47,17 +47,41 @@
         .comic-info-card.tags-card {
             grid-column: 1 / -1;
         }
-        /* 响应式：小屏幕改为单列 */
-        @media (max-width: 600px) {
+        /* 移动端适配：缩小字体、内边距，保持两列 */
+        @media (max-width: 768px) {
             .comic-info-grid {
-                grid-template-columns: 1fr;
-                gap: 10px;
+                gap: 8px;
             }
+            .comic-info-card {
+                padding: 8px 12px;
+                font-size: 0.75rem;
+            }
+            .comic-info-card strong {
+                min-width: 40px;
+                margin-right: 6px;
+                font-size: 0.75rem;
+            }
+            /* 确保标签卡片仍然独占一行 */
             .comic-info-card.tags-card {
-                grid-column: auto;
+                grid-column: 1 / -1;
             }
         }
-        /* 原有评论区样式保持不变 */
+        /* 非常小的屏幕（如宽度<480px）进一步缩小 */
+        @media (max-width: 480px) {
+            .comic-info-grid {
+                gap: 6px;
+            }
+            .comic-info-card {
+                padding: 6px 10px;
+                font-size: 0.7rem;
+            }
+            .comic-info-card strong {
+                min-width: 36px;
+                margin-right: 4px;
+                font-size: 0.7rem;
+            }
+        }
+        /* 评论区样式保持不变 */
         .comments-section {
             margin-top: 40px;
             text-align: left;
