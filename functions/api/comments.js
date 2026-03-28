@@ -65,7 +65,7 @@ export async function onRequestPost(context) {
             replyToUsernameValue = replyToUsername || parent.username;
         }
 
-        // 直接存储前端传来的 content（前端已处理 @ 前缀）
+        // 直接存储前端传来的 content（不做任何修改）
         const result = await env.DB.prepare(
             `INSERT INTO comments 
              (comic_id, user_id, username, user_role, content, parent_id, reply_to_user_id, reply_to_username) 
