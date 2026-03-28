@@ -2,11 +2,11 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>漫画详情</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* 原有样式保留，增加回复相关样式 */
+        /* 原有样式保持不变 */
         .comic-detail {
             text-align: center;
         }
@@ -27,7 +27,7 @@
             border-bottom: 1px solid #eee;
             padding-bottom: 10px;
         }
-        .comment-item {
+        .comment-item, .reply-item {
             padding: 10px 0;
             border-bottom: 1px solid #f0f0f0;
             position: relative;
@@ -108,6 +108,7 @@
             color: #0070f3;
             cursor: pointer;
             margin-left: 10px;
+            display: inline-block;
         }
         .reply-button:hover {
             text-decoration: underline;
@@ -178,7 +179,7 @@
             position: fixed;
             background: white;
             border: 1px solid #ccc;
-            border-radius: 4px;
+            border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.2);
             z-index: 10000;
             min-width: 120px;
@@ -186,10 +187,10 @@
         .comment-context-menu ul {
             list-style: none;
             margin: 0;
-            padding: 4px 0;
+            padding: 8px 0;
         }
         .comment-context-menu li {
-            padding: 6px 12px;
+            padding: 8px 16px;
             cursor: pointer;
             font-size: 0.9rem;
         }
@@ -359,9 +360,8 @@
             return { left, top };
         }
 
-        // 评论数据存储和渲染
-        let allComments = []; // 存储扁平评论数据
-        let topComments = []; // 存储组装后的顶级评论（含 replies）
+        let allComments = [];
+        let topComments = [];
 
         async function loadComments(comicId) {
             const listDiv = document.getElementById('comment-list');
@@ -371,7 +371,6 @@
                 const data = await res.json();
                 if (data.success) {
                     allComments = data.data;
-                    // 按 parent_id 分组
                     const repliesMap = new Map();
                     const top = [];
                     for (const comment of allComments) {
@@ -384,7 +383,6 @@
                             repliesMap.get(comment.parent_id).push(comment);
                         }
                     }
-                    // 为每个顶级评论添加 replies 数组
                     topComments = top.map(topComment => ({
                         ...topComment,
                         replies: (repliesMap.get(topComment.id) || []).sort((a, b) => a.created_at - b.created_at)
@@ -406,7 +404,6 @@
             }
             let html = '';
             for (const top of topComments) {
-                // 顶级评论
                 let groupName = '';
                 if (top.user_role === 'system') groupName = '系统';
                 else if (top.user_role === 'admin') groupName = '管理员';
@@ -425,7 +422,6 @@
                             <button data-id="${top.id}">发送</button>
                         </div>
                 `;
-                // 二级回复
                 if (top.replies && top.replies.length > 0) {
                     html += `<div class="reply-content">`;
                     for (const reply of top.replies) {
@@ -450,27 +446,29 @@
             }
             listDiv.innerHTML = html;
 
-            // 绑定回复按钮事件
+            // 绑定回复按钮
             document.querySelectorAll('.reply-button').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     const commentId = btn.getAttribute('data-id');
                     const form = document.getElementById(`reply-form-${commentId}`);
-                    if (form.style.display === 'none') {
-                        form.style.display = 'block';
-                    } else {
-                        form.style.display = 'none';
+                    if (form) {
+                        form.style.display = form.style.display === 'none' ? 'block' : 'none';
                     }
                 });
             });
-            // 绑定发送按钮事件
+
+            // 绑定发送按钮
             document.querySelectorAll('.reply-form button').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
                     e.stopPropagation();
                     const parentId = btn.getAttribute('data-id');
                     const textarea = btn.parentElement.querySelector('textarea');
                     const content = textarea.value.trim();
-                    if (!content) return;
+                    if (!content) {
+                        alert('请输入回复内容');
+                        return;
+                    }
                     const topComment = topComments.find(t => t.id == parentId);
                     if (!topComment) return;
                     await submitReply(parentId, topComment.user_id, topComment.username, content);
@@ -479,41 +477,65 @@
                 });
             });
 
-            // 绑定右键菜单（与原有逻辑一致，但需要更新菜单选项）
+            // 绑定右键/长按菜单
             attachContextMenu();
         }
 
         function attachContextMenu() {
-            // 注意：comment-item 和 reply-item 都需要右键菜单
             const commentItems = document.querySelectorAll('.comment-item, .reply-item');
             commentItems.forEach(item => {
-                item.removeEventListener('contextmenu', contextMenuHandler);
-                item.addEventListener('contextmenu', contextMenuHandler);
+                // 清除旧监听器避免重复
+                item.removeEventListener('contextmenu', handleContextMenu);
+                item.removeEventListener('touchstart', handleTouchStart);
+                item.removeEventListener('touchend', handleTouchEnd);
+                item.removeEventListener('touchmove', handleTouchMove);
+                
+                // 桌面右键
+                item.addEventListener('contextmenu', handleContextMenu);
+                
                 // 移动端长按
                 let pressTimer;
-                let savedX, savedY;
-                const touchStartHandler = (e) => {
+                let startX, startY;
+                
+                const handleTouchStart = (e) => {
+                    // 阻止默认行为，避免页面缩放或滚动时触发
                     e.preventDefault();
                     const touch = e.touches[0];
-                    savedX = touch.clientX;
-                    savedY = touch.clientY;
+                    startX = touch.clientX;
+                    startY = touch.clientY;
                     pressTimer = setTimeout(() => {
-                        const fakeEvent = { clientX: savedX, clientY: savedY };
-                        contextMenuHandler(fakeEvent, item);
+                        // 模拟右键菜单
+                        const fakeEvent = { clientX: startX, clientY: startY };
+                        handleContextMenu(fakeEvent, item);
                     }, 500);
                 };
-                const touchEndHandler = () => clearTimeout(pressTimer);
-                const touchMoveHandler = () => clearTimeout(pressTimer);
-                item.removeEventListener('touchstart', touchStartHandler);
-                item.removeEventListener('touchend', touchEndHandler);
-                item.removeEventListener('touchmove', touchMoveHandler);
-                item.addEventListener('touchstart', touchStartHandler);
-                item.addEventListener('touchend', touchEndHandler);
-                item.addEventListener('touchmove', touchMoveHandler);
+                
+                const handleTouchMove = (e) => {
+                    // 移动时取消长按
+                    clearTimeout(pressTimer);
+                };
+                
+                const handleTouchEnd = (e) => {
+                    clearTimeout(pressTimer);
+                };
+                
+                item.addEventListener('touchstart', handleTouchStart);
+                item.addEventListener('touchmove', handleTouchMove);
+                item.addEventListener('touchend', handleTouchEnd);
+                
+                // 存储清理函数所需的引用
+                item._touchStart = handleTouchStart;
+                item._touchMove = handleTouchMove;
+                item._touchEnd = handleTouchEnd;
             });
         }
 
-        function contextMenuHandler(event, element) {
+        function handleContextMenu(event, element) {
+            if (!element) {
+                element = event.currentTarget;
+            }
+            if (!element) return;
+            
             event.preventDefault();
             if (currentMenu) {
                 currentMenu.remove();
@@ -542,7 +564,6 @@
                 }
             }
 
-            // 构建菜单：回复选项仅对顶级评论显示
             const isTop = element.classList.contains('comment-item') && !element.classList.contains('reply-item');
             let menuHtml = '<ul>';
             if (isTop) {
@@ -570,7 +591,6 @@
                     e.stopPropagation();
                     const action = li.getAttribute('data-action');
                     if (action === 'reply' && isTop) {
-                        // 显示回复表单
                         const form = document.getElementById(`reply-form-${commentId}`);
                         if (form) form.style.display = 'block';
                         menu.remove();
@@ -622,7 +642,6 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    // 重新加载评论
                     await loadComments(comicId);
                 } else {
                     alert('回复失败: ' + (data.error || '未知错误'));
