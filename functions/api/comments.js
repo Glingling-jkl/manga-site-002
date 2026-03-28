@@ -31,7 +31,7 @@ export async function onRequestPost(context) {
     }
 
     try {
-        const { comicId, content, parentId, replyToUserId } = await request.json();
+        const { comicId, content, parentId } = await request.json();
         if (!comicId || !content) {
             return Response.json({ success: false, error: '缺少参数' }, { status: 400 });
         }
@@ -47,11 +47,10 @@ export async function onRequestPost(context) {
         }
 
         let parentIdValue = 0;
-        let replyToUserIdValue = null;
 
         if (parentId && parentId > 0) {
             const parent = await env.DB.prepare(
-                'SELECT id, user_id, username, parent_id FROM comments WHERE id = ? AND comic_id = ?'
+                'SELECT id, parent_id FROM comments WHERE id = ? AND comic_id = ?'
             ).bind(parentId, comicId).first();
             if (!parent) {
                 return Response.json({ success: false, error: '父评论不存在' }, { status: 404 });
@@ -60,14 +59,13 @@ export async function onRequestPost(context) {
                 return Response.json({ success: false, error: '不能回复二级评论' }, { status: 400 });
             }
             parentIdValue = parentId;
-            replyToUserIdValue = replyToUserId || parent.user_id;
         }
 
         const result = await env.DB.prepare(
             `INSERT INTO comments 
-             (comic_id, user_id, username, user_role, content, parent_id, reply_to_user_id) 
-             VALUES (?, ?, ?, ?, ?, ?, ?)`
-        ).bind(comicId, userId, user.username, user.role, content, parentIdValue, replyToUserIdValue)
+             (comic_id, user_id, username, user_role, content, parent_id) 
+             VALUES (?, ?, ?, ?, ?, ?)`
+        ).bind(comicId, userId, user.username, user.role, content, parentIdValue)
          .run();
 
         return Response.json({ success: true, id: result.meta.last_row_id });
