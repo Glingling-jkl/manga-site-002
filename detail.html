@@ -6,6 +6,7 @@
     <title>漫画详情</title>
     <link rel="stylesheet" href="style.css">
     <style>
+        /* 样式保持不变（与上一稳定版一致） */
         .comic-detail {
             text-align: center;
         }
@@ -593,6 +594,8 @@
                     }
                     const topComment = topComments.find(t => t.id == parentId);
                     if (!topComment) return;
+
+                    // 仅当按钮为 active 且内容未以 @用户名 开头时才添加
                     if (toggle.classList.contains('active')) {
                         const mention = `@${topComment.username} `;
                         if (!content.startsWith(mention)) {
@@ -605,7 +608,6 @@
                 });
             });
 
-            // 绑定右键/长按菜单
             attachContextMenu();
         }
 
