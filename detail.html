@@ -6,7 +6,6 @@
     <title>漫画详情</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* 所有样式与之前稳定版相同，此处保留完整 */
         .comic-detail {
             text-align: center;
         }
@@ -583,7 +582,7 @@
                 }
             });
 
-            // 发送按钮（核心修改）
+            // 发送按钮
             listDiv.addEventListener('click', async (e) => {
                 const btn = e.target.closest('.reply-form button');
                 if (!btn) return;
@@ -608,7 +607,7 @@
                     }
                 }
 
-                await submitReply(parentId, topComment.user_id, content);
+                await submitReply(parentId, content);
                 textarea.value = '';
                 form.style.display = 'none';
             });
@@ -703,7 +702,7 @@
             listDiv.addEventListener('touchmove', () => { if (touchTimer) clearTimeout(touchTimer); });
         }
 
-        async function submitReply(parentId, replyToUserId, content) {
+        async function submitReply(parentId, content) {
             try {
                 const res = await fetch('/api/comments', {
                     method: 'POST',
@@ -715,8 +714,7 @@
                     body: JSON.stringify({
                         comicId,
                         content,
-                        parentId,
-                        replyToUserId
+                        parentId
                     })
                 });
                 const data = await res.json();
@@ -801,4 +799,4 @@
         bindCommentEvents();
     </script>
 </body>
-</html>
+                                                                                       </html>
