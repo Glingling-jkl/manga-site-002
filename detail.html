@@ -6,6 +6,7 @@
     <title>漫画详情</title>
     <link rel="stylesheet" href="style.css">
     <style>
+        /* 原有样式保留，增加回复相关样式 */
         .comic-detail {
             text-align: center;
         }
@@ -60,6 +61,85 @@
             margin-top: 5px;
             font-size: 0.9rem;
             line-height: 1.4;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .reply-content {
+            margin-left: 24px;
+            padding-left: 12px;
+            border-left: 2px solid #ddd;
+            margin-top: 8px;
+        }
+        .reply-item {
+            margin-top: 12px;
+            padding: 8px;
+            background: #f9f9f9;
+            border-radius: 8px;
+        }
+        .reply-user {
+            font-weight: bold;
+            color: #0070f3;
+            font-size: 0.85rem;
+        }
+        .reply-group {
+            font-size: 0.7rem;
+            color: #666;
+            margin-left: 6px;
+            background: #e8e8e8;
+            padding: 1px 6px;
+            border-radius: 12px;
+        }
+        .reply-time {
+            font-size: 0.7rem;
+            color: #999;
+            margin-left: 10px;
+        }
+        .reply-text {
+            margin-top: 4px;
+            font-size: 0.85rem;
+            line-height: 1.4;
+        }
+        .reply-at {
+            color: #0070f3;
+            font-weight: 500;
+        }
+        .reply-button {
+            font-size: 0.7rem;
+            color: #0070f3;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        .reply-button:hover {
+            text-decoration: underline;
+        }
+        .reply-form {
+            margin-top: 10px;
+            margin-bottom: 10px;
+            background: #f5f5f5;
+            padding: 12px;
+            border-radius: 8px;
+            display: none;
+        }
+        .reply-form textarea {
+            width: 100%;
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            resize: vertical;
+            font-size: 0.85rem;
+        }
+        .reply-form button {
+            margin-top: 5px;
+            background: #0070f3;
+            color: white;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        .reply-form button:hover {
+            background: #0051b3;
         }
         .comment-form {
             margin-top: 20px;
@@ -279,6 +359,10 @@
             return { left, top };
         }
 
+        // 评论数据存储和渲染
+        let allComments = []; // 存储扁平评论数据
+        let topComments = []; // 存储组装后的顶级评论（含 replies）
+
         async function loadComments(comicId) {
             const listDiv = document.getElementById('comment-list');
             listDiv.innerHTML = '加载评论中...';
@@ -286,7 +370,26 @@
                 const res = await fetch(`/api/comments?comicId=${comicId}`);
                 const data = await res.json();
                 if (data.success) {
-                    renderComments(data.data);
+                    allComments = data.data;
+                    // 按 parent_id 分组
+                    const repliesMap = new Map();
+                    const top = [];
+                    for (const comment of allComments) {
+                        if (comment.parent_id === 0) {
+                            top.push(comment);
+                        } else {
+                            if (!repliesMap.has(comment.parent_id)) {
+                                repliesMap.set(comment.parent_id, []);
+                            }
+                            repliesMap.get(comment.parent_id).push(comment);
+                        }
+                    }
+                    // 为每个顶级评论添加 replies 数组
+                    topComments = top.map(topComment => ({
+                        ...topComment,
+                        replies: (repliesMap.get(topComment.id) || []).sort((a, b) => a.created_at - b.created_at)
+                    }));
+                    renderComments(topComments);
                 } else {
                     listDiv.innerHTML = `<p class="comment-error">加载失败: ${data.error}</p>`;
                 }
@@ -295,37 +398,98 @@
             }
         }
 
-        function renderComments(comments) {
+        function renderComments(topComments) {
             const listDiv = document.getElementById('comment-list');
-            if (comments.length === 0) {
+            if (topComments.length === 0) {
                 listDiv.innerHTML = '<p>暂无评论，来说两句吧～</p>';
                 return;
             }
             let html = '';
-            for (let c of comments) {
+            for (const top of topComments) {
+                // 顶级评论
                 let groupName = '';
-                if (c.user_role === 'system') groupName = '系统';
-                else if (c.user_role === 'admin') groupName = '管理员';
+                if (top.user_role === 'system') groupName = '系统';
+                else if (top.user_role === 'admin') groupName = '管理员';
                 else groupName = '用户';
                 html += `
-                    <div class="comment-item" data-comment-id="${c.id}" data-user-id="${c.user_id}" data-user-role="${c.user_role}" data-created-at="${c.created_at}">
+                    <div class="comment-item" data-comment-id="${top.id}" data-user-id="${top.user_id}" data-user-role="${top.user_role}" data-created-at="${top.created_at}">
                         <div class="comment-user-info">
-                            <span class="comment-user">${escapeHtml(c.username)}</span>
+                            <span class="comment-user">${escapeHtml(top.username)}</span>
                             <span class="comment-group">${groupName}</span>
-                            <span class="comment-time">${new Date(c.created_at).toLocaleString()}</span>
+                            <span class="comment-time">${new Date(top.created_at).toLocaleString()}</span>
+                            <span class="reply-button" data-id="${top.id}">回复</span>
                         </div>
-                        <div class="comment-content">${escapeHtml(c.content)}</div>
-                    </div>
+                        <div class="comment-content">${escapeHtml(top.content)}</div>
+                        <div class="reply-form" id="reply-form-${top.id}" style="display: none;">
+                            <textarea rows="2" placeholder="回复 @${escapeHtml(top.username)} ..."></textarea>
+                            <button data-id="${top.id}">发送</button>
+                        </div>
                 `;
+                // 二级回复
+                if (top.replies && top.replies.length > 0) {
+                    html += `<div class="reply-content">`;
+                    for (const reply of top.replies) {
+                        let replyGroup = '';
+                        if (reply.user_role === 'system') replyGroup = '系统';
+                        else if (reply.user_role === 'admin') replyGroup = '管理员';
+                        else replyGroup = '用户';
+                        html += `
+                            <div class="reply-item" data-comment-id="${reply.id}" data-user-id="${reply.user_id}" data-user-role="${reply.user_role}" data-created-at="${reply.created_at}">
+                                <span class="reply-user">${escapeHtml(reply.username)}</span>
+                                <span class="reply-group">${replyGroup}</span>
+                                <span class="reply-time">${new Date(reply.created_at).toLocaleString()}</span>
+                                <div class="reply-text">
+                                    <span class="reply-at">@${escapeHtml(reply.reply_to_username || '未知')}</span> ${escapeHtml(reply.content)}
+                                </div>
+                            </div>
+                        `;
+                    }
+                    html += `</div>`;
+                }
+                html += `</div>`;
             }
             listDiv.innerHTML = html;
 
-            const commentItems = document.querySelectorAll('.comment-item');
-            commentItems.forEach(item => {
-                item.addEventListener('contextmenu', (e) => {
-                    e.preventDefault();
-                    showContextMenu(e, item);
+            // 绑定回复按钮事件
+            document.querySelectorAll('.reply-button').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const commentId = btn.getAttribute('data-id');
+                    const form = document.getElementById(`reply-form-${commentId}`);
+                    if (form.style.display === 'none') {
+                        form.style.display = 'block';
+                    } else {
+                        form.style.display = 'none';
+                    }
                 });
+            });
+            // 绑定发送按钮事件
+            document.querySelectorAll('.reply-form button').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const parentId = btn.getAttribute('data-id');
+                    const textarea = btn.parentElement.querySelector('textarea');
+                    const content = textarea.value.trim();
+                    if (!content) return;
+                    const topComment = topComments.find(t => t.id == parentId);
+                    if (!topComment) return;
+                    await submitReply(parentId, topComment.user_id, topComment.username, content);
+                    textarea.value = '';
+                    btn.parentElement.style.display = 'none';
+                });
+            });
+
+            // 绑定右键菜单（与原有逻辑一致，但需要更新菜单选项）
+            attachContextMenu();
+        }
+
+        function attachContextMenu() {
+            // 注意：comment-item 和 reply-item 都需要右键菜单
+            const commentItems = document.querySelectorAll('.comment-item, .reply-item');
+            commentItems.forEach(item => {
+                item.removeEventListener('contextmenu', contextMenuHandler);
+                item.addEventListener('contextmenu', contextMenuHandler);
+                // 移动端长按
                 let pressTimer;
                 let savedX, savedY;
                 const touchStartHandler = (e) => {
@@ -335,27 +499,31 @@
                     savedY = touch.clientY;
                     pressTimer = setTimeout(() => {
                         const fakeEvent = { clientX: savedX, clientY: savedY };
-                        showContextMenu(fakeEvent, item);
+                        contextMenuHandler(fakeEvent, item);
                     }, 500);
                 };
                 const touchEndHandler = () => clearTimeout(pressTimer);
                 const touchMoveHandler = () => clearTimeout(pressTimer);
+                item.removeEventListener('touchstart', touchStartHandler);
+                item.removeEventListener('touchend', touchEndHandler);
+                item.removeEventListener('touchmove', touchMoveHandler);
                 item.addEventListener('touchstart', touchStartHandler);
                 item.addEventListener('touchend', touchEndHandler);
                 item.addEventListener('touchmove', touchMoveHandler);
             });
         }
 
-        function showContextMenu(event, commentElement) {
+        function contextMenuHandler(event, element) {
+            event.preventDefault();
             if (currentMenu) {
                 currentMenu.remove();
                 currentMenu = null;
             }
 
-            const commentId = commentElement.getAttribute('data-comment-id');
-            const commentUserId = commentElement.getAttribute('data-user-id');
-            const commentUserRole = commentElement.getAttribute('data-user-role');
-            const commentCreatedAt = parseInt(commentElement.getAttribute('data-created-at'));
+            const commentId = element.getAttribute('data-comment-id');
+            const commentUserId = element.getAttribute('data-user-id');
+            const commentUserRole = element.getAttribute('data-user-role');
+            const commentCreatedAt = parseInt(element.getAttribute('data-created-at'));
 
             const currentUserId = localStorage.getItem('currentUserId');
             const currentUserRole = localStorage.getItem('userRole');
@@ -374,14 +542,19 @@
                 }
             }
 
+            // 构建菜单：回复选项仅对顶级评论显示
+            const isTop = element.classList.contains('comment-item') && !element.classList.contains('reply-item');
+            let menuHtml = '<ul>';
+            if (isTop) {
+                menuHtml += `<li data-action="reply">回复</li>`;
+            }
+            menuHtml += `<li class="${!canRecall ? 'disabled' : ''}" data-action="recall">撤回</li>`;
+            menuHtml += `<li class="${!canDelete ? 'disabled' : ''}" data-action="delete">删除</li>`;
+            menuHtml += '</ul>';
+
             const menu = document.createElement('div');
             menu.className = 'comment-context-menu';
-            menu.innerHTML = `
-                <ul>
-                    <li class="${!canRecall ? 'disabled' : ''}" data-action="recall">撤回</li>
-                    <li class="${!canDelete ? 'disabled' : ''}" data-action="delete">删除</li>
-                </ul>
-            `;
+            menu.innerHTML = menuHtml;
             document.body.appendChild(menu);
 
             const menuWidth = menu.offsetWidth;
@@ -396,7 +569,13 @@
                 li.addEventListener('click', async (e) => {
                     e.stopPropagation();
                     const action = li.getAttribute('data-action');
-                    if (action === 'recall' && canRecall) {
+                    if (action === 'reply' && isTop) {
+                        // 显示回复表单
+                        const form = document.getElementById(`reply-form-${commentId}`);
+                        if (form) form.style.display = 'block';
+                        menu.remove();
+                        currentMenu = null;
+                    } else if (action === 'recall' && canRecall) {
                         await deleteComment(commentId);
                         menu.remove();
                         currentMenu = null;
@@ -424,6 +603,35 @@
             currentMenu = menu;
         }
 
+        async function submitReply(parentId, replyToUserId, replyToUsername, content) {
+            try {
+                const res = await fetch('/api/comments', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Auth-UserId': currentUserId,
+                        'X-Auth-Role': currentUserRole
+                    },
+                    body: JSON.stringify({
+                        comicId,
+                        content,
+                        parentId,
+                        replyToUserId,
+                        replyToUsername
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    // 重新加载评论
+                    await loadComments(comicId);
+                } else {
+                    alert('回复失败: ' + (data.error || '未知错误'));
+                }
+            } catch (err) {
+                alert('网络错误: ' + err.message);
+            }
+        }
+
         async function deleteComment(commentId) {
             try {
                 const res = await fetch(`/api/comments?id=${commentId}`, {
@@ -435,7 +643,7 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    loadComments(comicId);
+                    await loadComments(comicId);
                 } else {
                     alert('删除失败: ' + data.error);
                 }
@@ -483,7 +691,7 @@
                     const data = await res.json();
                     if (data.success) {
                         document.getElementById('commentContent').value = '';
-                        loadComments(comicId);
+                        await loadComments(comicId);
                     } else {
                         errorDiv.innerText = data.error || '发表失败';
                     }
