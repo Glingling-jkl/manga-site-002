@@ -63,7 +63,6 @@
             white-space: pre-wrap;
             word-break: break-word;
         }
-        /* 二级回复样式 */
         .replies-container {
             margin-left: 24px;
             padding-left: 12px;
@@ -360,7 +359,6 @@
             return { left, top };
         }
 
-        // 评论数据存储
         let allComments = [];
         let topComments = [];
 
@@ -372,7 +370,6 @@
                 const data = await res.json();
                 if (data.success) {
                     allComments = data.data;
-                    // 组装树形结构
                     const repliesMap = new Map();
                     const top = [];
                     for (const comment of allComments) {
@@ -483,23 +480,25 @@
             attachContextMenu();
         }
 
-        // 为所有评论元素绑定菜单事件
         function attachContextMenu() {
             const commentItems = document.querySelectorAll('.comment-item, .reply-item');
             commentItems.forEach(item => {
-                // 移除旧事件避免重复
+                // 移除旧的事件监听器（使用存储的 handlers 或直接移除所有可能的事件）
+                // 为了简单，移除所有可能的监听器（虽然不精确，但可行）
                 item.removeEventListener('contextmenu', handleContextMenu);
-                item.removeEventListener('touchstart', handleTouchStart);
-                item.removeEventListener('touchend', handleTouchEnd);
-                item.removeEventListener('touchmove', handleTouchMove);
-                
+                // 对于触摸事件，我们不能直接移除匿名函数，所以使用存储的 handlers
+                if (item._touchHandlers) {
+                    item.removeEventListener('touchstart', item._touchHandlers.touchStart);
+                    item.removeEventListener('touchmove', item._touchHandlers.touchMove);
+                    item.removeEventListener('touchend', item._touchHandlers.touchEnd);
+                }
+
                 // 桌面右键
                 item.addEventListener('contextmenu', handleContextMenu);
-                
+
                 // 移动端长按
                 let pressTimer;
-                const touchStartHandler = (e) => {
-                    // 阻止页面滚动时触发
+                const touchStart = (e) => {
                     e.preventDefault();
                     pressTimer = setTimeout(() => {
                         const touch = e.touches[0];
@@ -507,19 +506,17 @@
                         handleContextMenu(fakeEvent, item);
                     }, 500);
                 };
-                const touchMoveHandler = () => {
+                const touchMove = () => {
                     if (pressTimer) clearTimeout(pressTimer);
                 };
-                const touchEndHandler = () => {
+                const touchEnd = () => {
                     if (pressTimer) clearTimeout(pressTimer);
                 };
-                
-                item.addEventListener('touchstart', touchStartHandler);
-                item.addEventListener('touchmove', touchMoveHandler);
-                item.addEventListener('touchend', touchEndHandler);
-                
-                // 存储清理函数
-                item._touchHandlers = { touchStartHandler, touchMoveHandler, touchEndHandler };
+                item.addEventListener('touchstart', touchStart);
+                item.addEventListener('touchmove', touchMove);
+                item.addEventListener('touchend', touchEnd);
+                // 存储以便后续移除
+                item._touchHandlers = { touchStart, touchMove, touchEnd };
             });
         }
 
@@ -557,7 +554,6 @@
                 }
             }
 
-            // 判断是否为顶级评论（有 .comment-item 且不是 .reply-item）
             const isTop = element.classList.contains('comment-item') && !element.classList.contains('reply-item');
             let menuHtml = '<ul>';
             if (isTop) {
