@@ -57,7 +57,7 @@ export async function onRequestPost(context) {
         try {
             const rawUrl = `https://raw.githubusercontent.com/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/${branch}/${fileName}`;
             const kvKey = `file:${rawUrl}`;
-            await env.FILE_CACHE.put(kvKey, arrayBuffer, { expirationTtl: 2592000 });
+            await env.FILE_CACHE.put(kvKey, arrayBuffer);
         } catch (kvErr) {
             console.error('KV 写入失败（不影响上传）:', kvErr);
         }
