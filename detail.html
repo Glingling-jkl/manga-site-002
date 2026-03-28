@@ -481,52 +481,55 @@
             attachContextMenu();
         }
 
+        // 全局存储触摸事件处理函数
         function attachContextMenu() {
             const commentItems = document.querySelectorAll('.comment-item, .reply-item');
             commentItems.forEach(item => {
-                // 清除旧监听器避免重复
+                // 清除旧监听器
                 item.removeEventListener('contextmenu', handleContextMenu);
-                item.removeEventListener('touchstart', handleTouchStart);
-                item.removeEventListener('touchend', handleTouchEnd);
-                item.removeEventListener('touchmove', handleTouchMove);
+                item.removeEventListener('touchstart', onTouchStart);
+                item.removeEventListener('touchend', onTouchEnd);
+                item.removeEventListener('touchmove', onTouchMove);
                 
                 // 桌面右键
                 item.addEventListener('contextmenu', handleContextMenu);
                 
-                // 移动端长按
-                let pressTimer;
-                let startX, startY;
+                // 移动端长按 - 使用独立函数
+                let pressTimer = null;
                 
-                const handleTouchStart = (e) => {
-                    // 阻止默认行为，避免页面缩放或滚动时触发
+                function onTouchStart(e) {
                     e.preventDefault();
-                    const touch = e.touches[0];
-                    startX = touch.clientX;
-                    startY = touch.clientY;
                     pressTimer = setTimeout(() => {
-                        // 模拟右键菜单
-                        const fakeEvent = { clientX: startX, clientY: startY };
+                        const touch = e.touches[0];
+                        const fakeEvent = { clientX: touch.clientX, clientY: touch.clientY };
                         handleContextMenu(fakeEvent, item);
                     }, 500);
+                }
+                
+                function onTouchMove(e) {
+                    if (pressTimer) {
+                        clearTimeout(pressTimer);
+                        pressTimer = null;
+                    }
+                }
+                
+                function onTouchEnd(e) {
+                    if (pressTimer) {
+                        clearTimeout(pressTimer);
+                        pressTimer = null;
+                    }
+                }
+                
+                item.addEventListener('touchstart', onTouchStart);
+                item.addEventListener('touchmove', onTouchMove);
+                item.addEventListener('touchend', onTouchEnd);
+                
+                // 存储清理函数
+                item._cleanup = {
+                    onTouchStart,
+                    onTouchMove,
+                    onTouchEnd
                 };
-                
-                const handleTouchMove = (e) => {
-                    // 移动时取消长按
-                    clearTimeout(pressTimer);
-                };
-                
-                const handleTouchEnd = (e) => {
-                    clearTimeout(pressTimer);
-                };
-                
-                item.addEventListener('touchstart', handleTouchStart);
-                item.addEventListener('touchmove', handleTouchMove);
-                item.addEventListener('touchend', handleTouchEnd);
-                
-                // 存储清理函数所需的引用
-                item._touchStart = handleTouchStart;
-                item._touchMove = handleTouchMove;
-                item._touchEnd = handleTouchEnd;
             });
         }
 
