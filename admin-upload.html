@@ -6,7 +6,7 @@
     <title>上传漫画（自动分片）</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* 额外样式 */
+        /* 样式保持不变，与之前相同 */
         .upload-area {
             border: 2px dashed #ccc;
             border-radius: 12px;
@@ -341,7 +341,7 @@
             return newParts;
         }
 
-        // 上传元数据
+        // 上传元数据（fetch）
         async function uploadMetadata() {
             const form = document.getElementById('comicForm');
             const formData = new FormData();
@@ -367,22 +367,46 @@
             return data.id;
         }
 
-        // 上传单个分片
-        async function uploadPart(comicId, partIndex, blob, originalName) {
-            const formData = new FormData();
-            formData.append('comicId', comicId);
-            formData.append('partIndex', partIndex - 1); // 后端从0开始
-            formData.append('zipFile', blob, originalName);
-            formData.append('originalName', originalName);
+        // 上传单个分片（带真实进度）
+        function uploadPart(comicId, partIndex, blob, originalName, onProgress) {
+            return new Promise((resolve, reject) => {
+                const formData = new FormData();
+                formData.append('comicId', comicId);
+                formData.append('partIndex', partIndex - 1); // 后端从0开始
+                formData.append('zipFile', blob, originalName);
+                formData.append('originalName', originalName);
 
-            const response = await fetch('/api/comics/upload-part', {
-                method: 'POST',
-                headers: { 'X-Upload-Token': UPLOAD_TOKEN },
-                body: formData
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', '/api/comics/upload-part', true);
+                xhr.setRequestHeader('X-Upload-Token', UPLOAD_TOKEN);
+                
+                xhr.upload.onprogress = (event) => {
+                    if (event.lengthComputable && onProgress) {
+                        const percent = Math.round((event.loaded / event.total) * 100);
+                        onProgress(percent);
+                    }
+                };
+                
+                xhr.onload = () => {
+                    if (xhr.status === 200) {
+                        try {
+                            const data = JSON.parse(xhr.responseText);
+                            if (data.success) {
+                                resolve(data);
+                            } else {
+                                reject(new Error(data.error || '上传失败'));
+                            }
+                        } catch (e) {
+                            reject(new Error('解析响应失败'));
+                        }
+                    } else {
+                        reject(new Error(`HTTP ${xhr.status}`));
+                    }
+                };
+                
+                xhr.onerror = () => reject(new Error('网络错误'));
+                xhr.send(formData);
             });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
-            if (!data.success) throw new Error(data.error || '未知错误');
         }
 
         // 完成上传
@@ -431,7 +455,7 @@
                     div.innerHTML = `
                         <div class="file-name">分片 ${i+1} (${(parts[i].size / 1024 / 1024).toFixed(2)} MB)</div>
                         <div class="file-status status-pending" id="status-${i+1}">等待上传</div>
-                        <div class="progress-bar" style="display: none;" id="progress-${i+1}">
+                        <div class="progress-bar" id="progress-${i+1}">
                             <div class="progress-fill" id="progress-fill-${i+1}"></div>
                         </div>
                     `;
@@ -442,32 +466,29 @@
                 comicId = await uploadMetadata();
                 resultDiv.innerHTML = `漫画记录已创建 (ID: ${comicId})，开始上传分片...`;
                 
-                // 4. 依次上传分片
+                // 4. 依次上传分片（带真实进度）
                 for (let i = 0; i < parts.length; i++) {
                     const part = parts[i];
                     const statusSpan = document.getElementById(`status-${part.index}`);
-                    const progressBar = document.getElementById(`progress-${part.index}`);
                     const progressFill = document.getElementById(`progress-fill-${part.index}`);
+                    const progressBar = document.getElementById(`progress-${part.index}`);
                     
                     statusSpan.innerText = '上传中';
                     statusSpan.className = 'file-status status-uploading';
                     progressBar.style.display = 'block';
                     
-                    // 模拟进度（实际上无法获取真实进度，简单动画）
-                    let fakeProgress = 0;
-                    const interval = setInterval(() => {
-                        fakeProgress += 10;
-                        if (fakeProgress <= 90) progressFill.style.width = fakeProgress + '%';
-                    }, 300);
+                    // 进度回调
+                    const onProgress = (percent) => {
+                        progressFill.style.width = percent + '%';
+                        // 可以显示百分比文字，这里仅更新宽度
+                    };
                     
                     try {
-                        await uploadPart(comicId, part.index, part.blob, `part_${part.index}.zip`);
-                        clearInterval(interval);
+                        await uploadPart(comicId, part.index, part.blob, `part_${part.index}.zip`, onProgress);
                         progressFill.style.width = '100%';
                         statusSpan.innerText = '成功';
                         statusSpan.className = 'file-status status-success';
                     } catch (err) {
-                        clearInterval(interval);
                         statusSpan.innerText = `失败: ${err.message}`;
                         statusSpan.className = 'file-status status-error';
                         throw err;
