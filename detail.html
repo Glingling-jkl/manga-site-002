@@ -476,57 +476,26 @@
                 });
             });
 
-            // 绑定右键菜单（桌面）和长按菜单（移动端）
+            // 绑定右键/长按菜单（只使用 contextmenu 事件）
             attachContextMenu();
         }
 
         function attachContextMenu() {
             const commentItems = document.querySelectorAll('.comment-item, .reply-item');
             commentItems.forEach(item => {
-                // 移除旧的事件监听器（使用存储的 handlers 或直接移除所有可能的事件）
-                // 为了简单，移除所有可能的监听器（虽然不精确，但可行）
+                // 移除旧事件避免重复
                 item.removeEventListener('contextmenu', handleContextMenu);
-                // 对于触摸事件，我们不能直接移除匿名函数，所以使用存储的 handlers
-                if (item._touchHandlers) {
-                    item.removeEventListener('touchstart', item._touchHandlers.touchStart);
-                    item.removeEventListener('touchmove', item._touchHandlers.touchMove);
-                    item.removeEventListener('touchend', item._touchHandlers.touchEnd);
-                }
-
-                // 桌面右键
                 item.addEventListener('contextmenu', handleContextMenu);
-
-                // 移动端长按
-                let pressTimer;
-                const touchStart = (e) => {
-                    e.preventDefault();
-                    pressTimer = setTimeout(() => {
-                        const touch = e.touches[0];
-                        const fakeEvent = { clientX: touch.clientX, clientY: touch.clientY };
-                        handleContextMenu(fakeEvent, item);
-                    }, 500);
-                };
-                const touchMove = () => {
-                    if (pressTimer) clearTimeout(pressTimer);
-                };
-                const touchEnd = () => {
-                    if (pressTimer) clearTimeout(pressTimer);
-                };
-                item.addEventListener('touchstart', touchStart);
-                item.addEventListener('touchmove', touchMove);
-                item.addEventListener('touchend', touchEnd);
-                // 存储以便后续移除
-                item._touchHandlers = { touchStart, touchMove, touchEnd };
             });
         }
 
-        function handleContextMenu(event, element) {
-            if (!element) {
-                element = event.currentTarget;
-            }
+        function handleContextMenu(event) {
+            // 获取被点击的元素（可能是 .comment-item 或 .reply-item）
+            let element = event.currentTarget;
             if (!element) return;
-            
-            event.preventDefault();
+
+            event.preventDefault(); // 阻止系统菜单
+
             if (currentMenu) {
                 currentMenu.remove();
                 currentMenu = null;
@@ -717,4 +686,4 @@
         }
     </script>
 </body>
-</html>
+    </html>
