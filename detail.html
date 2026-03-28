@@ -6,7 +6,6 @@
     <title>漫画详情</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* 原有样式保持不变 */
         .comic-detail {
             text-align: center;
         }
@@ -27,7 +26,7 @@
             border-bottom: 1px solid #eee;
             padding-bottom: 10px;
         }
-        .comment-item, .reply-item {
+        .comment-item {
             padding: 10px 0;
             border-bottom: 1px solid #f0f0f0;
             position: relative;
@@ -64,7 +63,8 @@
             white-space: pre-wrap;
             word-break: break-word;
         }
-        .reply-content {
+        /* 二级回复样式 */
+        .replies-container {
             margin-left: 24px;
             padding-left: 12px;
             border-left: 2px solid #ddd;
@@ -179,7 +179,7 @@
             position: fixed;
             background: white;
             border: 1px solid #ccc;
-            border-radius: 8px;
+            border-radius: 4px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.2);
             z-index: 10000;
             min-width: 120px;
@@ -187,10 +187,10 @@
         .comment-context-menu ul {
             list-style: none;
             margin: 0;
-            padding: 8px 0;
+            padding: 4px 0;
         }
         .comment-context-menu li {
-            padding: 8px 16px;
+            padding: 6px 12px;
             cursor: pointer;
             font-size: 0.9rem;
         }
@@ -360,6 +360,7 @@
             return { left, top };
         }
 
+        // 评论数据存储
         let allComments = [];
         let topComments = [];
 
@@ -371,6 +372,7 @@
                 const data = await res.json();
                 if (data.success) {
                     allComments = data.data;
+                    // 组装树形结构
                     const repliesMap = new Map();
                     const top = [];
                     for (const comment of allComments) {
@@ -423,7 +425,7 @@
                         </div>
                 `;
                 if (top.replies && top.replies.length > 0) {
-                    html += `<div class="reply-content">`;
+                    html += `<div class="replies-container">`;
                     for (const reply of top.replies) {
                         let replyGroup = '';
                         if (reply.user_role === 'system') replyGroup = '系统';
@@ -477,59 +479,47 @@
                 });
             });
 
-            // 绑定右键/长按菜单
+            // 绑定右键菜单（桌面）和长按菜单（移动端）
             attachContextMenu();
         }
 
-        // 全局存储触摸事件处理函数
+        // 为所有评论元素绑定菜单事件
         function attachContextMenu() {
             const commentItems = document.querySelectorAll('.comment-item, .reply-item');
             commentItems.forEach(item => {
-                // 清除旧监听器
+                // 移除旧事件避免重复
                 item.removeEventListener('contextmenu', handleContextMenu);
-                item.removeEventListener('touchstart', onTouchStart);
-                item.removeEventListener('touchend', onTouchEnd);
-                item.removeEventListener('touchmove', onTouchMove);
+                item.removeEventListener('touchstart', handleTouchStart);
+                item.removeEventListener('touchend', handleTouchEnd);
+                item.removeEventListener('touchmove', handleTouchMove);
                 
                 // 桌面右键
                 item.addEventListener('contextmenu', handleContextMenu);
                 
-                // 移动端长按 - 使用独立函数
-                let pressTimer = null;
-                
-                function onTouchStart(e) {
+                // 移动端长按
+                let pressTimer;
+                const touchStartHandler = (e) => {
+                    // 阻止页面滚动时触发
                     e.preventDefault();
                     pressTimer = setTimeout(() => {
                         const touch = e.touches[0];
                         const fakeEvent = { clientX: touch.clientX, clientY: touch.clientY };
                         handleContextMenu(fakeEvent, item);
                     }, 500);
-                }
+                };
+                const touchMoveHandler = () => {
+                    if (pressTimer) clearTimeout(pressTimer);
+                };
+                const touchEndHandler = () => {
+                    if (pressTimer) clearTimeout(pressTimer);
+                };
                 
-                function onTouchMove(e) {
-                    if (pressTimer) {
-                        clearTimeout(pressTimer);
-                        pressTimer = null;
-                    }
-                }
-                
-                function onTouchEnd(e) {
-                    if (pressTimer) {
-                        clearTimeout(pressTimer);
-                        pressTimer = null;
-                    }
-                }
-                
-                item.addEventListener('touchstart', onTouchStart);
-                item.addEventListener('touchmove', onTouchMove);
-                item.addEventListener('touchend', onTouchEnd);
+                item.addEventListener('touchstart', touchStartHandler);
+                item.addEventListener('touchmove', touchMoveHandler);
+                item.addEventListener('touchend', touchEndHandler);
                 
                 // 存储清理函数
-                item._cleanup = {
-                    onTouchStart,
-                    onTouchMove,
-                    onTouchEnd
-                };
+                item._touchHandlers = { touchStartHandler, touchMoveHandler, touchEndHandler };
             });
         }
 
@@ -567,6 +557,7 @@
                 }
             }
 
+            // 判断是否为顶级评论（有 .comment-item 且不是 .reply-item）
             const isTop = element.classList.contains('comment-item') && !element.classList.contains('reply-item');
             let menuHtml = '<ul>';
             if (isTop) {
