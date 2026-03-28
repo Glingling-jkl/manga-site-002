@@ -8,7 +8,6 @@ export async function onRequestGet(context) {
     }
 
     try {
-        // 获取所有评论，包含新增字段
         const { results } = await env.DB.prepare(
             `SELECT id, user_id, username, user_role, content, 
                     CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at_ms,
@@ -16,7 +15,6 @@ export async function onRequestGet(context) {
              FROM comments WHERE comic_id = ? 
              ORDER BY created_at ASC`
         ).bind(comicId).all();
-        // 将 created_at_ms 重命名为 created_at
         const data = results.map(r => ({ ...r, created_at: r.created_at_ms }));
         return Response.json({ success: true, data });
     } catch (err) {
@@ -38,13 +36,11 @@ export async function onRequestPost(context) {
             return Response.json({ success: false, error: '缺少参数' }, { status: 400 });
         }
 
-        // 验证漫画是否存在
         const comic = await env.DB.prepare('SELECT id FROM comics WHERE id = ?').bind(comicId).first();
         if (!comic) {
             return Response.json({ success: false, error: '漫画不存在' }, { status: 404 });
         }
 
-        // 获取当前用户信息
         const user = await env.DB.prepare('SELECT username, role FROM users WHERE id = ?').bind(userId).first();
         if (!user) {
             return Response.json({ success: false, error: '用户不存在' }, { status: 404 });
@@ -54,7 +50,6 @@ export async function onRequestPost(context) {
         let replyToUserIdValue = null;
         let replyToUsernameValue = null;
 
-        // 如果是回复，验证父评论
         if (parentId && parentId > 0) {
             const parent = await env.DB.prepare(
                 'SELECT id, user_id, username, parent_id FROM comments WHERE id = ? AND comic_id = ?'
@@ -62,7 +57,6 @@ export async function onRequestPost(context) {
             if (!parent) {
                 return Response.json({ success: false, error: '父评论不存在' }, { status: 404 });
             }
-            // 只允许回复一级评论（parent_id === 0）
             if (parent.parent_id !== 0) {
                 return Response.json({ success: false, error: '不能回复二级评论' }, { status: 400 });
             }
@@ -71,7 +65,7 @@ export async function onRequestPost(context) {
             replyToUsernameValue = replyToUsername || parent.username;
         }
 
-        // 插入新评论
+        // 直接存储前端传来的 content（前端已处理 @ 前缀）
         const result = await env.DB.prepare(
             `INSERT INTO comments 
              (comic_id, user_id, username, user_role, content, parent_id, reply_to_user_id, reply_to_username) 
@@ -101,7 +95,6 @@ export async function onRequestDelete(context) {
     }
 
     try {
-        // 获取评论信息（包括 parent_id 和创建时间）
         const comment = await env.DB.prepare(
             `SELECT id, user_id, user_role, parent_id,
                     CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS created_at_ms
@@ -115,7 +108,6 @@ export async function onRequestDelete(context) {
         const isWithin5Min = (now - comment.created_at_ms) <= 5 * 60 * 1000;
         const isOwner = (comment.user_id == userId);
 
-        // 权限判断
         let canDelete = false;
         if (userRole === 'system') {
             canDelete = true;
@@ -133,11 +125,10 @@ export async function onRequestDelete(context) {
             return Response.json({ success: false, error: '无权删除此评论' }, { status: 403 });
         }
 
-        // 级联删除：如果删除的是一级评论（parent_id === 0），则删除其所有子评论
+        // 只有一级评论才删除其子评论
         if (comment.parent_id === 0) {
             await env.DB.prepare('DELETE FROM comments WHERE parent_id = ?').bind(commentId).run();
         }
-        // 删除自身
         await env.DB.prepare('DELETE FROM comments WHERE id = ?').bind(commentId).run();
 
         return Response.json({ success: true, message: '删除成功' });
