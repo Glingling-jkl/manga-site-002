@@ -3,29 +3,127 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>上传漫画 - 管理员</title>
+    <title>上传漫画（自动分片）</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        .upload-form input, .upload-form select, .upload-form textarea { margin: 10px 0; }
-        .file-list { margin-top: 20px; border: 1px solid #ddd; border-radius: 8px; padding: 10px; max-height: 300px; overflow-y: auto; }
-        .file-item { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid #eee; }
-        .file-name { flex: 1; word-break: break-all; }
-        .file-status { margin-left: 10px; font-size: 0.8rem; }
-        .status-success { color: green; }
-        .status-error { color: red; }
-        .status-uploading { color: orange; }
-        .progress-bar { width: 100%; height: 4px; background: #eee; margin-top: 2px; }
-        .progress-fill { height: 100%; background: #0070f3; width: 0%; }
-        .btn-submit { margin-top: 20px; }
-        .admin-link { margin-top: 30px; text-align: center; }
-        .admin-link a { color: #0070f3; text-decoration: none; font-weight: bold; }
-        .admin-link a:hover { text-decoration: underline; }
+        /* 额外样式 */
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .upload-area:hover {
+            border-color: #0070f3;
+            background: #f5f9ff;
+        }
+        .file-info {
+            background: #f5f5f5;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 15px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .preview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+            margin: 20px 0;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 10px;
+        }
+        .preview-item {
+            text-align: center;
+            background: #fafafa;
+            border-radius: 6px;
+            padding: 5px;
+        }
+        .preview-item img {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 4px;
+        }
+        .preview-item .filename {
+            font-size: 0.7rem;
+            color: #666;
+            margin-top: 4px;
+            word-break: break-all;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            margin-left: 8px;
+        }
+        .status-pending { background: #f0f0f0; color: #666; }
+        .status-uploading { background: #ffc107; color: #333; }
+        .status-success { background: #4caf50; color: white; }
+        .status-error { background: #f44336; color: white; }
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #eee;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #0070f3;
+            width: 0%;
+            transition: width 0.2s;
+        }
+        .comic-form input, .comic-form textarea, .comic-form select {
+            margin-bottom: 12px;
+        }
+        .btn-secondary {
+            background: #6c757d;
+        }
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
     <div class="container">
-        <h2>📤 上传新漫画（分片模式）</h2>
-        <form id="uploadForm" class="upload-form" enctype="multipart/form-data">
+        <h2>📤 上传漫画（自动分片）</h2>
+        <p>选择 ZIP 文件，系统会自动解压并按每10张图片打包成分片上传。</p>
+
+        <!-- 上传区域 -->
+        <div class="upload-area" id="uploadArea">
+            <p>📂 点击或拖拽 ZIP 文件到此处</p>
+            <input type="file" id="zipInput" accept=".zip" style="display: none;">
+        </div>
+
+        <!-- 文件信息 -->
+        <div id="fileInfo" style="display: none;">
+            <div class="file-info">
+                <span id="fileName"></span>
+                <span id="fileSize"></span>
+                <button id="clearFile" class="btn-secondary" style="width: auto; padding: 4px 12px;">清除</button>
+            </div>
+        </div>
+
+        <!-- 预览区域 -->
+        <div id="previewArea" style="display: none;">
+            <h4>图片预览（前30张）</h4>
+            <div id="previewGrid" class="preview-grid"></div>
+            <p id="totalImagesCount"></p>
+        </div>
+
+        <!-- 漫画信息表单 -->
+        <form id="comicForm" class="comic-form" style="display: none;">
             <label>漫画名 *</label>
             <input type="text" name="title" placeholder="例如：海贼王 第一卷" required>
 
@@ -42,17 +140,10 @@
             <input type="number" name="chapters" value="1" min="1">
 
             <label>总页数 *</label>
-            <input type="number" name="total_pages" placeholder="例如：180" required min="1">
+            <input type="number" name="total_pages" placeholder="例如：180" required min="1" id="totalPagesInput" readonly>
 
             <label>简介</label>
             <textarea name="description" rows="4" placeholder="简单描述漫画内容..."></textarea>
-
-            <label>分片文件夹（包含所有 ZIP 分片） *</label>
-            <input type="file" id="folderInput" webkitdirectory directory multiple>
-            <div id="fileList" class="file-list" style="display: none;">
-                <h4>分片列表</h4>
-                <div id="filesContainer"></div>
-            </div>
 
             <div class="toggle-switch">
                 <label>高危内容：</label>
@@ -63,9 +154,13 @@
             <button type="button" id="uploadBtn" class="btn-submit" disabled>开始上传</button>
         </form>
 
-        <div id="result" style="margin-top: 20px;"></div>
-        <div id="uploadResult" style="margin-top: 20px;"></div>
+        <!-- 上传进度区域 -->
+        <div id="uploadProgress" style="display: none; margin-top: 20px;">
+            <h4>上传进度</h4>
+            <div id="partsList"></div>
+        </div>
 
+        <div id="result" style="margin-top: 20px;"></div>
         <div class="admin-link">
             <a href="admin-manage.html">📋 管理已有漫画</a>
         </div>
@@ -83,55 +178,183 @@
         document.getElementById('uploaderDisplay').value = `${currentUser} (${userRole})`;
 
         const UPLOAD_TOKEN = 'manga-upload-secret-2025';
-        let selectedFiles = [];
+        let selectedFile = null;
+        let imageFiles = [];      // 存储所有图片文件 { name, blob }
+        let totalPages = 0;
+        let parts = [];           // 存储分片 { index, blob, size }
         let comicId = null;
 
-        const folderInput = document.getElementById('folderInput');
-        const fileListDiv = document.getElementById('fileList');
-        const filesContainer = document.getElementById('filesContainer');
+        // DOM 元素
+        const zipInput = document.getElementById('zipInput');
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInfoDiv = document.getElementById('fileInfo');
+        const fileNameSpan = document.getElementById('fileName');
+        const fileSizeSpan = document.getElementById('fileSize');
+        const clearFileBtn = document.getElementById('clearFile');
+        const previewArea = document.getElementById('previewArea');
+        const previewGrid = document.getElementById('previewGrid');
+        const totalImagesCountSpan = document.getElementById('totalImagesCount');
+        const comicForm = document.getElementById('comicForm');
+        const totalPagesInput = document.getElementById('totalPagesInput');
         const uploadBtn = document.getElementById('uploadBtn');
+        const uploadProgressDiv = document.getElementById('uploadProgress');
+        const partsListDiv = document.getElementById('partsList');
+        const resultDiv = document.getElementById('result');
 
-        folderInput.addEventListener('change', (e) => {
-            const files = Array.from(e.target.files).filter(f => f.name.endsWith('.zip'));
-            if (files.length === 0) {
-                alert('请选择包含 ZIP 文件的文件夹');
-                return;
+        // 点击上传区域触发文件选择
+        uploadArea.addEventListener('click', () => zipInput.click());
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = '#0070f3';
+            uploadArea.style.background = '#f5f9ff';
+        });
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.style.borderColor = '#ccc';
+            uploadArea.style.background = '';
+        });
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.style.borderColor = '#ccc';
+            uploadArea.style.background = '';
+            const files = e.dataTransfer.files;
+            if (files.length && files[0].name.endsWith('.zip')) {
+                handleZipFile(files[0]);
+            } else {
+                alert('请拖拽 ZIP 文件');
             }
-            selectedFiles = files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-            renderFileList();
-            fileListDiv.style.display = 'block';
-            uploadBtn.disabled = false;
         });
 
-        function renderFileList() {
-            let html = '';
-            selectedFiles.forEach((file, idx) => {
-                html += `
-                    <div class="file-item" data-idx="${idx}">
-                        <span class="file-name">${escapeHtml(file.name)}</span>
-                        <span class="file-status" id="status-${idx}">等待上传</span>
-                        <div class="progress-bar" id="progress-${idx}" style="display: none;">
-                            <div class="progress-fill" id="progress-fill-${idx}"></div>
-                        </div>
-                    </div>
-                `;
-            });
-            filesContainer.innerHTML = html;
+        zipInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                handleZipFile(e.target.files[0]);
+            }
+        });
+
+        clearFileBtn.addEventListener('click', () => {
+            resetUI();
+        });
+
+        async function handleZipFile(file) {
+            resetUI();
+            selectedFile = file;
+            fileNameSpan.textContent = `文件名: ${file.name}`;
+            fileSizeSpan.textContent = `大小: ${(file.size / 1024 / 1024).toFixed(2)} MB`;
+            fileInfoDiv.style.display = 'block';
+            
+            resultDiv.innerHTML = '<p>正在解压并分析 ZIP 文件...</p>';
+            try {
+                const zip = await JSZip.loadAsync(file);
+                // 获取所有图片文件（扁平化）
+                const allFiles = [];
+                zip.forEach((relativePath, zipEntry) => {
+                    if (!zipEntry.dir && /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(relativePath)) {
+                        allFiles.push({ path: relativePath, zipEntry });
+                    }
+                });
+                // 按文件名排序（自然排序）
+                allFiles.sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true, sensitivity: 'base' }));
+                totalPages = allFiles.length;
+                totalPagesInput.value = totalPages;
+                
+                if (totalPages === 0) {
+                    throw new Error('ZIP 中没有找到图片文件');
+                }
+                
+                // 生成预览（前30张）
+                const previewLimit = Math.min(30, totalPages);
+                previewGrid.innerHTML = '';
+                for (let i = 0; i < previewLimit; i++) {
+                    const entry = allFiles[i];
+                    const blob = await entry.zipEntry.async('blob');
+                    const url = URL.createObjectURL(blob);
+                    const div = document.createElement('div');
+                    div.className = 'preview-item';
+                    div.innerHTML = `
+                        <img src="${url}" alt="${entry.path}">
+                        <div class="filename">${entry.path.split('/').pop()}</div>
+                    `;
+                    previewGrid.appendChild(div);
+                }
+                if (totalPages > previewLimit) {
+                    const more = document.createElement('div');
+                    more.className = 'preview-item';
+                    more.innerHTML = `<div style="padding:20px;">... 共 ${totalPages} 张图片</div>`;
+                    previewGrid.appendChild(more);
+                }
+                totalImagesCountSpan.textContent = `共 ${totalPages} 张图片`;
+                previewArea.style.display = 'block';
+                
+                // 存储图片 Blob 以便后续分片
+                imageFiles = [];
+                for (let i = 0; i < allFiles.length; i++) {
+                    const blob = await allFiles[i].zipEntry.async('blob');
+                    imageFiles.push({ name: allFiles[i].path.split('/').pop(), blob });
+                    // 更新进度提示（可选）
+                    if ((i + 1) % 100 === 0) {
+                        resultDiv.innerHTML = `<p>正在加载图片... ${i+1}/${totalPages}</p>`;
+                    }
+                }
+                resultDiv.innerHTML = '<p>✅ ZIP 解压完成，可以开始上传</p>';
+                comicForm.style.display = 'block';
+                uploadBtn.disabled = false;
+            } catch (err) {
+                console.error(err);
+                resultDiv.innerHTML = `<p style="color:red;">❌ 处理 ZIP 失败: ${err.message}</p>`;
+                resetUI();
+            }
         }
 
-        async function uploadComicMetadata() {
-            const form = document.getElementById('uploadForm');
+        function resetUI() {
+            selectedFile = null;
+            imageFiles = [];
+            totalPages = 0;
+            parts = [];
+            comicId = null;
+            fileInfoDiv.style.display = 'none';
+            previewArea.style.display = 'none';
+            comicForm.style.display = 'none';
+            uploadProgressDiv.style.display = 'none';
+            uploadBtn.disabled = true;
+            resultDiv.innerHTML = '';
+            zipInput.value = '';
+        }
+
+        // 将图片列表按每10张打包成 ZIP 分片
+        async function createParts() {
+            const PART_SIZE = 10;
+            const partCount = Math.ceil(totalPages / PART_SIZE);
+            const newParts = [];
+            for (let i = 0; i < partCount; i++) {
+                const start = i * PART_SIZE;
+                const end = Math.min(start + PART_SIZE, totalPages);
+                const slice = imageFiles.slice(start, end);
+                const zip = new JSZip();
+                for (let j = 0; j < slice.length; j++) {
+                    const img = slice[j];
+                    // 文件名保持原始顺序，用三位数字前缀保证排序
+                    const filename = `${String(start + j + 1).padStart(3, '0')}_${img.name}`;
+                    zip.file(filename, img.blob);
+                }
+                const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+                newParts.push({ index: i + 1, blob, size: blob.size });
+            }
+            return newParts;
+        }
+
+        // 上传元数据
+        async function uploadMetadata() {
+            const form = document.getElementById('comicForm');
             const formData = new FormData();
             formData.append('title', form.title.value);
             formData.append('author', form.author.value);
             formData.append('uploader', `${currentUser} (${userRole})`);
             formData.append('tags', form.tags.value);
             formData.append('chapters', form.chapters.value);
-            formData.append('total_pages', form.total_pages.value);
+            formData.append('total_pages', totalPages);
             formData.append('description', form.description.value);
             formData.append('owner_role', userRole);
             formData.append('is_adult', document.getElementById('isAdultCheckbox').checked ? 'yes' : 'no');
-            formData.append('total_parts', selectedFiles.length);
+            formData.append('total_parts', parts.length);
 
             const response = await fetch('/api/comics/create', {
                 method: 'POST',
@@ -144,12 +367,13 @@
             return data.id;
         }
 
-        async function uploadPart(comicId, partIndex, file, newFileName) {
+        // 上传单个分片
+        async function uploadPart(comicId, partIndex, blob, originalName) {
             const formData = new FormData();
             formData.append('comicId', comicId);
-            formData.append('partIndex', partIndex);
-            formData.append('zipFile', file);
-            formData.append('originalName', newFileName);
+            formData.append('partIndex', partIndex - 1); // 后端从0开始
+            formData.append('zipFile', blob, originalName);
+            formData.append('originalName', originalName);
 
             const response = await fetch('/api/comics/upload-part', {
                 method: 'POST',
@@ -161,8 +385,9 @@
             if (!data.success) throw new Error(data.error || '未知错误');
         }
 
+        // 完成上传
         async function finishUpload(comicId) {
-            const form = document.getElementById('uploadForm');
+            const form = document.getElementById('comicForm');
             const response = await fetch('/api/comics/finish-upload', {
                 method: 'POST',
                 headers: {
@@ -171,8 +396,8 @@
                 },
                 body: JSON.stringify({
                     comicId,
-                    total_pages: parseInt(form.total_pages.value),
-                    total_parts: selectedFiles.length
+                    total_pages: totalPages,
+                    total_parts: parts.length
                 })
             });
             const data = await response.json();
@@ -181,34 +406,62 @@
             return data;
         }
 
+        // 开始上传流程
         uploadBtn.addEventListener('click', async () => {
-            const resultDiv = document.getElementById('uploadResult');
-            resultDiv.innerHTML = '初始化...';
+            if (!selectedFile) {
+                alert('请先选择 ZIP 文件');
+                return;
+            }
             uploadBtn.disabled = true;
-
+            resultDiv.innerHTML = '<p>正在生成分片... 请稍候</p>';
+            
             try {
-                comicId = await uploadComicMetadata();
+                // 1. 生成分片
+                parts = await createParts();
+                if (parts.length === 0) throw new Error('没有生成任何分片');
+                resultDiv.innerHTML = `<p>已生成 ${parts.length} 个分片，开始上传到服务器...</p>`;
+                
+                // 2. 显示分片列表
+                uploadProgressDiv.style.display = 'block';
+                partsListDiv.innerHTML = '';
+                for (let i = 0; i < parts.length; i++) {
+                    const div = document.createElement('div');
+                    div.id = `part-${i+1}`;
+                    div.className = 'file-item';
+                    div.innerHTML = `
+                        <div class="file-name">分片 ${i+1} (${(parts[i].size / 1024 / 1024).toFixed(2)} MB)</div>
+                        <div class="file-status status-pending" id="status-${i+1}">等待上传</div>
+                        <div class="progress-bar" style="display: none;" id="progress-${i+1}">
+                            <div class="progress-fill" id="progress-fill-${i+1}"></div>
+                        </div>
+                    `;
+                    partsListDiv.appendChild(div);
+                }
+                
+                // 3. 创建漫画记录
+                comicId = await uploadMetadata();
                 resultDiv.innerHTML = `漫画记录已创建 (ID: ${comicId})，开始上传分片...`;
-
-                for (let i = 0; i < selectedFiles.length; i++) {
-                    const file = selectedFiles[i];
-                    const newFileName = `part_${i+1}.zip`;
-                    const statusSpan = document.getElementById(`status-${i}`);
-                    const progressBar = document.getElementById(`progress-${i}`);
-                    const progressFill = document.getElementById(`progress-fill-${i}`);
+                
+                // 4. 依次上传分片
+                for (let i = 0; i < parts.length; i++) {
+                    const part = parts[i];
+                    const statusSpan = document.getElementById(`status-${part.index}`);
+                    const progressBar = document.getElementById(`progress-${part.index}`);
+                    const progressFill = document.getElementById(`progress-fill-${part.index}`);
+                    
                     statusSpan.innerText = '上传中';
                     statusSpan.className = 'file-status status-uploading';
                     progressBar.style.display = 'block';
-                    progressFill.style.width = '0%';
-
-                    let progress = 0;
+                    
+                    // 模拟进度（实际上无法获取真实进度，简单动画）
+                    let fakeProgress = 0;
                     const interval = setInterval(() => {
-                        progress += 10;
-                        if (progress <= 90) progressFill.style.width = progress + '%';
-                    }, 200);
-
+                        fakeProgress += 10;
+                        if (fakeProgress <= 90) progressFill.style.width = fakeProgress + '%';
+                    }, 300);
+                    
                     try {
-                        await uploadPart(comicId, i, file, newFileName);
+                        await uploadPart(comicId, part.index, part.blob, `part_${part.index}.zip`);
                         clearInterval(interval);
                         progressFill.style.width = '100%';
                         statusSpan.innerText = '成功';
@@ -220,7 +473,8 @@
                         throw err;
                     }
                 }
-
+                
+                // 5. 完成上传
                 await finishUpload(comicId);
                 resultDiv.innerHTML = `
                     <div style="color:green; background:#e8f5e8; padding:15px; border-radius:8px;">
@@ -233,15 +487,6 @@
                 uploadBtn.disabled = false;
             }
         });
-
-        function escapeHtml(str) {
-            return str.replace(/[&<>]/g, function(m) {
-                if (m === '&') return '&amp;';
-                if (m === '<') return '&lt;';
-                if (m === '>') return '&gt;';
-                return m;
-            });
-        }
     </script>
 </body>
 </html>
