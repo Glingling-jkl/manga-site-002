@@ -67,7 +67,7 @@ export async function onRequestPost(context) {
             const infoRawUrl = `https://raw.githubusercontent.com/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/${branch}/${infoFileName}`;
             const kvKey = `file:${infoRawUrl}`;
             const infoBlob = new TextEncoder().encode(JSON.stringify(info));
-            await env.FILE_CACHE.put(kvKey, infoBlob, { expirationTtl: 2592000 });
+            await env.FILE_CACHE.put(kvKey, infoBlob);
         } catch (kvErr) {
             console.error('KV 写入 info.json 失败（不影响上传）:', kvErr);
         }
