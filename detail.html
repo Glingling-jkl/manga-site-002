@@ -6,7 +6,7 @@
     <title>漫画详情</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* 样式保持不变，仅调整回复表单布局 */
+        /* 样式与之前相同，仅保留必要的布局 */
         .comic-detail {
             text-align: center;
         }
@@ -175,7 +175,6 @@
             border-radius: 8px;
             display: none;
         }
-        /* 新布局：输入框独占一行，下面一行左发送右@ */
         .reply-form .reply-textarea-row {
             margin-bottom: 8px;
         }
@@ -310,7 +309,7 @@
     </div>
 
     <script>
-        // ========== 辅助函数（与之前相同） ==========
+        // ========== 辅助函数 ==========
         const CHUNK_COUNT = 4;
 
         async function fetchWithChunks(url) {
@@ -536,7 +535,7 @@
                         if (reply.user_role === 'system') replyGroup = '系统';
                         else if (reply.user_role === 'admin') replyGroup = '管理员';
                         else replyGroup = '用户';
-                        // 显示 @ 前缀：根据 reply_to_username 是否为空
+                        // 关键修复：只有当 reply_to_username 有值（非空且不是'未知'）时才显示 @ 前缀
                         const showAt = reply.reply_to_username && reply.reply_to_username.trim() !== '';
                         html += `
                             <div class="reply-item" data-comment-id="${reply.id}" data-user-id="${reply.user_id}" data-user-role="${reply.user_role}" data-created-at="${reply.created_at}">
@@ -599,7 +598,7 @@
                     const form = btn.closest('.reply-form');
                     const textarea = form.querySelector('textarea');
                     const toggle = form.querySelector('.reply-at-toggle');
-                    let content = textarea.value.trim();
+                    const content = textarea.value.trim();
                     if (!content) {
                         alert('请输入回复内容');
                         return;
