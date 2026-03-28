@@ -6,7 +6,7 @@
     <title>漫画详情</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* 样式保持与之前一致，仅确保发送按钮样式 */
+        /* 所有样式与之前稳定版相同，此处保留完整 */
         .comic-detail {
             text-align: center;
         }
@@ -212,7 +212,7 @@
             width: 32px;
             height: 32px;
             border-radius: 50%;
-            background: #0070f3;
+            background: #aaa;
             color: white;
             font-size: 1rem;
             font-weight: bold;
@@ -311,11 +311,9 @@
     <script>
         // ========== 辅助函数 ==========
         const CHUNK_COUNT = 4;
-
         async function fetchWithChunks(url) {
             const headRes = await fetch(url, { method: 'HEAD', mode: 'cors' });
             if (!headRes.ok) throw new Error(`HTTP ${headRes.status}`);
-
             const contentLength = headRes.headers.get('content-length');
             const acceptRanges = headRes.headers.get('accept-ranges');
             if (!contentLength || acceptRanges !== 'bytes') {
@@ -323,7 +321,6 @@
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 return await res.blob();
             }
-
             const total = parseInt(contentLength, 10);
             const chunkSize = Math.ceil(total / CHUNK_COUNT);
             const promises = [];
@@ -452,14 +449,10 @@
             let offsetX = 10, offsetY = 10;
             let left = x + offsetX;
             let top = y + offsetY;
-            if (left + menuWidth > winWidth) {
-                left = x - menuWidth - offsetX;
-                if (left < 0) left = 0;
-            }
-            if (top + menuHeight > winHeight) {
-                top = y - menuHeight - offsetY;
-                if (top < 0) top = 0;
-            }
+            if (left + menuWidth > winWidth) left = x - menuWidth - offsetX;
+            if (top + menuHeight > winHeight) top = y - menuHeight - offsetY;
+            if (left < 0) left = 0;
+            if (top < 0) top = 0;
             return { left, top };
         }
 
@@ -474,12 +467,9 @@
                     const repliesMap = new Map();
                     const top = [];
                     for (const comment of allComments) {
-                        if (comment.parent_id === 0) {
-                            top.push(comment);
-                        } else {
-                            if (!repliesMap.has(comment.parent_id)) {
-                                repliesMap.set(comment.parent_id, []);
-                            }
+                        if (comment.parent_id === 0) top.push(comment);
+                        else {
+                            if (!repliesMap.has(comment.parent_id)) repliesMap.set(comment.parent_id, []);
                             repliesMap.get(comment.parent_id).push(comment);
                         }
                     }
@@ -496,6 +486,7 @@
             }
         }
 
+        // 渲染评论，并对二级评论中开头的 @用户名 进行高亮
         function renderComments(topComments) {
             const listDiv = document.getElementById('comment-list');
             if (topComments.length === 0) {
@@ -523,7 +514,7 @@
                             </div>
                             <div class="reply-actions-row">
                                 <button data-id="${top.id}">发送</button>
-                                <div class="reply-at-toggle active" data-id="${top.id}" data-username="${escapeHtml(top.username)}">@</div>
+                                <div class="reply-at-toggle inactive" data-id="${top.id}" data-username="${escapeHtml(top.username)}">@</div>
                             </div>
                         </div>
                 `;
@@ -534,15 +525,20 @@
                         if (reply.user_role === 'system') replyGroup = '系统';
                         else if (reply.user_role === 'admin') replyGroup = '管理员';
                         else replyGroup = '用户';
-                        const showAt = reply.reply_to_username && reply.reply_to_username.trim() !== '';
+                        // 对内容进行高亮处理：如果以 @用户名 开头，则将其包裹为蓝色
+                        let contentHtml = escapeHtml(reply.content);
+                        const match = contentHtml.match(/^@([^\s]+)\s/);
+                        if (match) {
+                            const atPart = match[0];
+                            const rest = contentHtml.slice(atPart.length);
+                            contentHtml = `<span class="reply-at">${atPart}</span>${rest}`;
+                        }
                         html += `
                             <div class="reply-item" data-comment-id="${reply.id}" data-user-id="${reply.user_id}" data-user-role="${reply.user_role}" data-created-at="${reply.created_at}">
                                 <span class="reply-user">${escapeHtml(reply.username)}</span>
                                 <span class="reply-group">${replyGroup}</span>
                                 <span class="reply-time">${new Date(reply.created_at).toLocaleString()}</span>
-                                <div class="reply-text">
-                                    ${showAt ? `<span class="reply-at">@${escapeHtml(reply.reply_to_username)}</span> ` : ''}${escapeHtml(reply.content)}
-                                </div>
+                                <div class="reply-text">${contentHtml}</div>
                             </div>
                         `;
                     }
@@ -553,24 +549,21 @@
             listDiv.innerHTML = html;
         }
 
-        // 事件委托：绑定所有动态事件
         function bindCommentEvents() {
             const listDiv = document.getElementById('comment-list');
             if (!listDiv) return;
 
-            // 回复按钮点击（显示/隐藏回复表单）
+            // 回复按钮点击
             listDiv.addEventListener('click', (e) => {
                 const btn = e.target.closest('.reply-button');
                 if (!btn) return;
                 e.stopPropagation();
                 const commentId = btn.getAttribute('data-id');
                 const form = document.getElementById(`reply-form-${commentId}`);
-                if (form) {
-                    form.style.display = form.style.display === 'none' ? 'block' : 'none';
-                }
+                if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
             });
 
-            // @ 按钮切换状态
+            // @按钮切换（默认灰色，点击变蓝）
             listDiv.addEventListener('click', (e) => {
                 const toggle = e.target.closest('.reply-at-toggle');
                 if (!toggle) return;
@@ -590,7 +583,7 @@
                 }
             });
 
-            // 发送按钮点击
+            // 发送按钮（核心修改）
             listDiv.addEventListener('click', async (e) => {
                 const btn = e.target.closest('.reply-form button');
                 if (!btn) return;
@@ -599,15 +592,23 @@
                 const form = btn.closest('.reply-form');
                 const textarea = form.querySelector('textarea');
                 const toggle = form.querySelector('.reply-at-toggle');
-                const content = textarea.value.trim();
+                let content = textarea.value.trim();
                 if (!content) {
                     alert('请输入回复内容');
                     return;
                 }
                 const topComment = topComments.find(t => t.id == parentId);
                 if (!topComment) return;
-                const replyToUsername = toggle.classList.contains('active') ? topComment.username : '';
-                await submitReply(parentId, topComment.user_id, replyToUsername, content);
+
+                // 如果 @ 按钮是激活状态，则在内容前加上 @主评论用户名
+                if (toggle.classList.contains('active')) {
+                    const mention = `@${topComment.username} `;
+                    if (!content.startsWith(mention)) {
+                        content = mention + content;
+                    }
+                }
+
+                await submitReply(parentId, topComment.user_id, content);
                 textarea.value = '';
                 form.style.display = 'none';
             });
@@ -617,56 +618,38 @@
                 const commentElem = e.target.closest('.comment-item, .reply-item');
                 if (!commentElem) return;
                 e.preventDefault();
-
                 if (currentMenu) {
                     currentMenu.remove();
                     currentMenu = null;
                 }
-
                 const commentId = commentElem.getAttribute('data-comment-id');
                 const commentUserId = commentElem.getAttribute('data-user-id');
                 const commentUserRole = commentElem.getAttribute('data-user-role');
                 const commentCreatedAt = parseInt(commentElem.getAttribute('data-created-at'));
-
                 const currentUserId = localStorage.getItem('currentUserId');
                 const currentUserRole = localStorage.getItem('userRole');
-
                 const isOwner = (commentUserId === currentUserId);
                 const now = Date.now();
                 const isWithin5Min = (now - commentCreatedAt) <= 5 * 60 * 1000;
-
                 const canRecall = isOwner && isWithin5Min;
                 let canDelete = false;
-                if (currentUserRole === 'system') {
-                    canDelete = true;
-                } else if (currentUserRole === 'admin') {
-                    if (commentUserRole === 'user') {
-                        canDelete = true;
-                    }
-                }
-
+                if (currentUserRole === 'system') canDelete = true;
+                else if (currentUserRole === 'admin' && commentUserRole === 'user') canDelete = true;
                 const isTop = commentElem.classList.contains('comment-item') && !commentElem.classList.contains('reply-item');
                 let menuHtml = '<ul>';
-                if (isTop) {
-                    menuHtml += `<li data-action="reply">回复</li>`;
-                }
+                if (isTop) menuHtml += `<li data-action="reply">回复</li>`;
                 menuHtml += `<li class="${!canRecall ? 'disabled' : ''}" data-action="recall">撤回</li>`;
                 menuHtml += `<li class="${!canDelete ? 'disabled' : ''}" data-action="delete">删除</li>`;
                 menuHtml += '</ul>';
-
                 const menu = document.createElement('div');
                 menu.className = 'comment-context-menu';
                 menu.innerHTML = menuHtml;
                 document.body.appendChild(menu);
-
                 const menuWidth = menu.offsetWidth;
                 const menuHeight = menu.offsetHeight;
-                const x = e.clientX;
-                const y = e.clientY;
-                const pos = getPosition(x, y, menuWidth, menuHeight);
+                const pos = getPosition(e.clientX, e.clientY, menuWidth, menuHeight);
                 menu.style.left = pos.left + 'px';
                 menu.style.top = pos.top + 'px';
-
                 menu.querySelectorAll('li').forEach(li => {
                     li.addEventListener('click', async (e) => {
                         e.stopPropagation();
@@ -687,7 +670,6 @@
                         }
                     });
                 });
-
                 const hideMenu = (e) => {
                     if (!menu.contains(e.target)) {
                         menu.remove();
@@ -703,14 +685,12 @@
                 currentMenu = menu;
             });
 
-            // 移动端长按（仅模拟右键，不阻止滚动）
+            // 移动端长按
             let touchTimer = null;
             listDiv.addEventListener('touchstart', (e) => {
                 const target = e.target.closest('.comment-item, .reply-item');
                 if (!target) return;
-                // 不调用 preventDefault，让滚动继续
                 touchTimer = setTimeout(() => {
-                    // 模拟右键事件
                     const fakeEvent = new MouseEvent('contextmenu', {
                         clientX: e.touches[0].clientX,
                         clientY: e.touches[0].clientY,
@@ -719,15 +699,11 @@
                     target.dispatchEvent(fakeEvent);
                 }, 500);
             });
-            listDiv.addEventListener('touchend', () => {
-                if (touchTimer) clearTimeout(touchTimer);
-            });
-            listDiv.addEventListener('touchmove', () => {
-                if (touchTimer) clearTimeout(touchTimer);
-            });
+            listDiv.addEventListener('touchend', () => { if (touchTimer) clearTimeout(touchTimer); });
+            listDiv.addEventListener('touchmove', () => { if (touchTimer) clearTimeout(touchTimer); });
         }
 
-        async function submitReply(parentId, replyToUserId, replyToUsername, content) {
+        async function submitReply(parentId, replyToUserId, content) {
             try {
                 const res = await fetch('/api/comments', {
                     method: 'POST',
@@ -740,8 +716,7 @@
                         comicId,
                         content,
                         parentId,
-                        replyToUserId,
-                        replyToUsername
+                        replyToUserId
                     })
                 });
                 const data = await res.json();
@@ -777,12 +752,7 @@
 
         function escapeHtml(str) {
             if (!str) return '';
-            return str.replace(/[&<>]/g, function(m) {
-                if (m === '&') return '&amp;';
-                if (m === '<') return '&lt;';
-                if (m === '>') return '&gt;';
-                return m;
-            });
+            return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : (m === '<' ? '&lt;' : '&gt;'));
         }
 
         // ========== 评论输入框 ==========
@@ -825,14 +795,9 @@
                 }
             });
         } else {
-            container.innerHTML = `
-                <div class="login-prompt">
-                    <p>请先 <a href="login.html">登录</a> 后发表评论。</p>
-                </div>
-            `;
+            container.innerHTML = `<div class="login-prompt"><p>请先 <a href="login.html">登录</a> 后发表评论。</p></div>`;
         }
 
-        // 在页面加载后绑定评论事件
         bindCommentEvents();
     </script>
 </body>
