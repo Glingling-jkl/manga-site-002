@@ -18,39 +18,42 @@
             font-size: 1.2rem;
             margin-top: 20px;
         }
-        /* 新增：信息网格布局 */
+        /* 信息网格 - 独立卡片布局 */
         .comic-info-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 12px 20px;
+            gap: 12px;
             margin: 20px 0;
-            text-align: left;
-            background: #f9f9f9;
-            padding: 16px;
-            border-radius: 12px;
         }
-        .comic-info-item {
+        /* 每个信息卡片 */
+        .comic-info-card {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 12px 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            text-align: left;
             font-size: 0.9rem;
             line-height: 1.4;
             word-break: break-word;
         }
-        .comic-info-item strong {
-            color: #333;
+        .comic-info-card strong {
+            color: #2c3e50;
             font-weight: 600;
-            margin-right: 6px;
+            margin-right: 8px;
+            display: inline-block;
+            min-width: 52px;
         }
-        /* 标签独占一整行 */
-        .comic-info-tags {
+        /* 标签卡片独占一整行 */
+        .comic-info-card.tags-card {
             grid-column: 1 / -1;
-            margin-top: 4px;
         }
-        /* 响应式：小屏幕时单列 */
+        /* 响应式：小屏幕改为单列 */
         @media (max-width: 600px) {
             .comic-info-grid {
                 grid-template-columns: 1fr;
                 gap: 10px;
             }
-            .comic-info-tags {
+            .comic-info-card.tags-card {
                 grid-column: auto;
             }
         }
@@ -354,15 +357,15 @@
                 warningHtml = '<div class="adult-warning">⚠️ 不安全性内容</div>';
             }
             
-            // 构建信息网格
+            // 构建独立卡片网格
             const infoHtml = `
                 <div class="comic-info-grid">
-                    <div class="comic-info-item"><strong>作者：</strong> ${escapeHtml(comic.author)}</div>
-                    <div class="comic-info-item"><strong>上传者：</strong> ${escapeHtml(comic.uploader)}</div>
-                    <div class="comic-info-item"><strong>章数：</strong> ${comic.chapters} 话</div>
-                    <div class="comic-info-item"><strong>总页数：</strong> ${comic.pages} 页</div>
-                    <div class="comic-info-item"><strong>上传时间：</strong> ${new Date(comic.uploaded_at).toLocaleDateString()}</div>
-                    <div class="comic-info-item comic-info-tags"><strong>标签：</strong> ${escapeHtml(tags)}</div>
+                    <div class="comic-info-card"><strong>作者：</strong> ${escapeHtml(comic.author)}</div>
+                    <div class="comic-info-card"><strong>上传者：</strong> ${escapeHtml(comic.uploader)}</div>
+                    <div class="comic-info-card"><strong>章数：</strong> ${comic.chapters} 话</div>
+                    <div class="comic-info-card"><strong>总页数：</strong> ${comic.pages} 页</div>
+                    <div class="comic-info-card"><strong>上传时间：</strong> ${new Date(comic.uploaded_at).toLocaleDateString()}</div>
+                    <div class="comic-info-card tags-card"><strong>标签：</strong> ${escapeHtml(tags)}</div>
                 </div>
             `;
             
