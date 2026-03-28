@@ -6,7 +6,7 @@
     <title>漫画详情</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* 样式与之前完全一致，不做任何改动 */
+        /* 样式保持与之前一致，仅确保发送按钮样式 */
         .comic-detail {
             text-align: center;
         }
@@ -309,7 +309,7 @@
     </div>
 
     <script>
-        // ========== 辅助函数（不变） ==========
+        // ========== 辅助函数 ==========
         const CHUNK_COUNT = 4;
 
         async function fetchWithChunks(url) {
@@ -379,7 +379,7 @@
             loadComments(comicId);
         }
 
-        // ========== 漫画详情（不变） ==========
+        // ========== 漫画详情 ==========
         async function loadComicDetail(id) {
             try {
                 const res = await fetch(`/api/comics/${id}`, {
@@ -441,13 +441,11 @@
             window.location.href = `reader.html?zip=${encodeURIComponent(zipUrl)}&id=${comicId}`;
         }
 
-        // ========== 评论区（重构部分） ==========
-        // 全局变量
+        // ========== 评论区 ==========
         let currentMenu = null;
         let allComments = [];
         let topComments = [];
 
-        // 辅助函数：获取位置
         function getPosition(x, y, menuWidth, menuHeight) {
             const winWidth = window.innerWidth;
             const winHeight = window.innerHeight;
@@ -465,7 +463,6 @@
             return { left, top };
         }
 
-        // 加载评论（获取数据并组装）
         async function loadComments(comicId) {
             const listDiv = document.getElementById('comment-list');
             listDiv.innerHTML = '加载评论中...';
@@ -474,7 +471,6 @@
                 const data = await res.json();
                 if (data.success) {
                     allComments = data.data;
-                    // 构建回复映射
                     const repliesMap = new Map();
                     const top = [];
                     for (const comment of allComments) {
@@ -500,7 +496,6 @@
             }
         }
 
-        // 渲染评论（生成HTML，并绑定事件委托）
         function renderComments(topComments) {
             const listDiv = document.getElementById('comment-list');
             if (topComments.length === 0) {
@@ -558,12 +553,12 @@
             listDiv.innerHTML = html;
         }
 
-        // 事件委托：统一处理评论区所有动态元素
-        function initCommentEvents() {
+        // 事件委托：绑定所有动态事件
+        function bindCommentEvents() {
             const listDiv = document.getElementById('comment-list');
             if (!listDiv) return;
 
-            // 1. 回复按钮点击
+            // 回复按钮点击（显示/隐藏回复表单）
             listDiv.addEventListener('click', (e) => {
                 const btn = e.target.closest('.reply-button');
                 if (!btn) return;
@@ -575,7 +570,7 @@
                 }
             });
 
-            // 2. @ 按钮点击（切换状态）
+            // @ 按钮切换状态
             listDiv.addEventListener('click', (e) => {
                 const toggle = e.target.closest('.reply-at-toggle');
                 if (!toggle) return;
@@ -595,7 +590,7 @@
                 }
             });
 
-            // 3. 发送按钮点击
+            // 发送按钮点击
             listDiv.addEventListener('click', async (e) => {
                 const btn = e.target.closest('.reply-form button');
                 if (!btn) return;
@@ -617,11 +612,12 @@
                 form.style.display = 'none';
             });
 
-            // 4. 右键菜单（桌面/移动端长按）
+            // 右键菜单（桌面）
             listDiv.addEventListener('contextmenu', (e) => {
                 const commentElem = e.target.closest('.comment-item, .reply-item');
                 if (!commentElem) return;
                 e.preventDefault();
+
                 if (currentMenu) {
                     currentMenu.remove();
                     currentMenu = null;
@@ -707,31 +703,30 @@
                 currentMenu = menu;
             });
 
-            // 移动端长按（使用 touchstart + timer）
+            // 移动端长按（仅模拟右键，不阻止滚动）
             let touchTimer = null;
-            let touchTarget = null;
             listDiv.addEventListener('touchstart', (e) => {
                 const target = e.target.closest('.comment-item, .reply-item');
                 if (!target) return;
-                e.preventDefault();
-                touchTarget = target;
+                // 不调用 preventDefault，让滚动继续
                 touchTimer = setTimeout(() => {
-                    const fakeEvent = { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
-                    const contextEvent = new MouseEvent('contextmenu', fakeEvent);
-                    target.dispatchEvent(contextEvent);
+                    // 模拟右键事件
+                    const fakeEvent = new MouseEvent('contextmenu', {
+                        clientX: e.touches[0].clientX,
+                        clientY: e.touches[0].clientY,
+                        bubbles: true
+                    });
+                    target.dispatchEvent(fakeEvent);
                 }, 500);
             });
             listDiv.addEventListener('touchend', () => {
                 if (touchTimer) clearTimeout(touchTimer);
-                touchTarget = null;
             });
             listDiv.addEventListener('touchmove', () => {
                 if (touchTimer) clearTimeout(touchTimer);
-                touchTarget = null;
             });
         }
 
-        // 提交回复
         async function submitReply(parentId, replyToUserId, replyToUsername, content) {
             try {
                 const res = await fetch('/api/comments', {
@@ -760,7 +755,6 @@
             }
         }
 
-        // 删除评论
         async function deleteComment(commentId) {
             try {
                 const res = await fetch(`/api/comments?id=${commentId}`, {
@@ -781,7 +775,6 @@
             }
         }
 
-        // 通用转义
         function escapeHtml(str) {
             if (!str) return '';
             return str.replace(/[&<>]/g, function(m) {
@@ -792,41 +785,55 @@
             });
         }
 
-        // 初始化评论区（在页面加载和评论刷新后调用）
-        function initComments() {
-            // 评论加载和渲染后，绑定事件
-            initCommentEvents();
+        // ========== 评论输入框 ==========
+        const container = document.getElementById('comment-form-container');
+        if (isLoggedIn) {
+            container.innerHTML = `
+                <div class="comment-form">
+                    <textarea id="commentContent" rows="3" placeholder="写下你的评论..."></textarea>
+                    <button id="submitCommentBtn">发表评论</button>
+                    <div id="commentError" class="comment-error"></div>
+                </div>
+            `;
+            document.getElementById('submitCommentBtn').addEventListener('click', async () => {
+                const content = document.getElementById('commentContent').value.trim();
+                const errorDiv = document.getElementById('commentError');
+                if (!content) {
+                    errorDiv.innerText = '评论内容不能为空';
+                    return;
+                }
+                errorDiv.innerText = '';
+                try {
+                    const res = await fetch('/api/comments', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Auth-UserId': currentUserId,
+                            'X-Auth-Role': currentUserRole
+                        },
+                        body: JSON.stringify({ comicId, content })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        document.getElementById('commentContent').value = '';
+                        await loadComments(comicId);
+                    } else {
+                        errorDiv.innerText = data.error || '发表失败';
+                    }
+                } catch (err) {
+                    errorDiv.innerText = '网络错误，请稍后重试';
+                }
+            });
+        } else {
+            container.innerHTML = `
+                <div class="login-prompt">
+                    <p>请先 <a href="login.html">登录</a> 后发表评论。</p>
+                </div>
+            `;
         }
 
-        // 覆盖原有的 loadComments 调用，确保事件绑定
-        // 在页面加载完成后调用一次
-        (function() {
-            // 保留原有 loadComments 的引用，但我们需要在渲染后绑定事件
-            // 由于原代码中已有 loadComments 和 renderComments，我们只需在 loadComments 调用后执行 initComments
-            // 但为了方便，我们直接修改原 loadComments 的末尾（但为了不破坏现有结构，我们这里在全局设置一个回调）
-            // 实际上，我们已经在 renderComments 函数内部没有绑定事件，而是将事件绑定委托到外部。
-            // 所以需要在第一次 loadComments 完成后手动调用 initComments。
-            // 我们可以在 setTimeout 中调用，确保 DOM 已渲染。
-            // 但由于 loadComments 是异步的，我们可以在 loadComments 函数内部最后调用 initComments。
-            // 为了避免重复绑定，我们只绑定一次。
-            let commentsInitialized = false;
-            const originalLoadComments = loadComments;
-            window.loadComments = async function(comicId) {
-                await originalLoadComments(comicId);
-                if (!commentsInitialized) {
-                    initComments();
-                    commentsInitialized = true;
-                }
-            };
-            // 如果已经调用了 loadComments（在页面加载时），确保在它完成后绑定
-            // 由于 loadComments 已在页面加载时调用，我们延迟一下
-            setTimeout(() => {
-                if (!commentsInitialized) {
-                    initComments();
-                    commentsInitialized = true;
-                }
-            }, 100);
-        })();
+        // 在页面加载后绑定评论事件
+        bindCommentEvents();
     </script>
 </body>
 </html>
