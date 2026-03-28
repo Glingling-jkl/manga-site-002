@@ -18,7 +18,6 @@
             font-size: 1.2rem;
             margin-top: 20px;
         }
-        /* 信息网格 - 独立卡片布局，移动端也保持两列 */
         .comic-info-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -73,7 +72,6 @@
                 font-size: 0.7rem;
             }
         }
-        /* 评论区样式（恢复权限组显示） */
         .comments-section {
             margin-top: 40px;
             text-align: left;
@@ -198,6 +196,7 @@
             border-radius: 20px;
             cursor: pointer;
             font-size: 0.8rem;
+            white-space: nowrap;
         }
         .reply-form button:hover {
             background: #0051b3;
@@ -392,7 +391,6 @@
             }
         }
 
-        // 提取纯用户名（去除括号及角色后缀）
         function extractUsername(uploaderStr) {
             if (!uploaderStr) return '';
             const match = uploaderStr.match(/^([^(]+)/);
@@ -405,10 +403,7 @@
             if (comic.is_adult === 'yes') {
                 warningHtml = '<div class="adult-warning">⚠️ 不安全性内容</div>';
             }
-            
-            // 处理上传者：只显示用户名，去掉角色
             const uploaderName = extractUsername(comic.uploader);
-            
             const infoHtml = `
                 <div class="comic-info-grid">
                     <div class="comic-info-card"><strong>作者：</strong> ${escapeHtml(comic.author)}</div>
@@ -419,7 +414,6 @@
                     <div class="comic-info-card tags-card"><strong>标签：</strong> ${escapeHtml(tags)}</div>
                 </div>
             `;
-            
             const html = `
                 <img id="cover-img" data-src="${comic.cover_url}" alt="${comic.title}">
                 <h1>${escapeHtml(comic.title)}</h1>
@@ -518,10 +512,10 @@
                         <div class="comment-content">${escapeHtml(top.content)}</div>
                         <div class="reply-form" id="reply-form-${top.id}" style="display: none;">
                             <div class="reply-input-row">
-                                <div class="reply-at-toggle active" data-id="${top.id}" data-username="${escapeHtml(top.username)}">@</div>
                                 <textarea rows="2" placeholder="回复 @${escapeHtml(top.username)} ..."></textarea>
+                                <button data-id="${top.id}">发送</button>
+                                <div class="reply-at-toggle active" data-id="${top.id}" data-username="${escapeHtml(top.username)}">@</div>
                             </div>
-                            <button data-id="${top.id}">发送</button>
                         </div>
                 `;
                 if (top.replies && top.replies.length > 0) {
@@ -565,20 +559,18 @@
                 toggle.addEventListener('click', (e) => {
                     e.stopPropagation();
                     const isActive = toggle.classList.contains('active');
+                    const form = toggle.closest('.reply-form');
+                    const textarea = form.querySelector('textarea');
+                    const username = toggle.getAttribute('data-username');
                     if (isActive) {
                         toggle.classList.remove('active');
                         toggle.classList.add('inactive');
-                        const form = toggle.closest('.reply-form');
-                        const textarea = form.querySelector('textarea');
                         if (textarea) {
-                            textarea.placeholder = `回复...`;
+                            textarea.placeholder = '回复...';
                         }
                     } else {
                         toggle.classList.remove('inactive');
                         toggle.classList.add('active');
-                        const form = toggle.closest('.reply-form');
-                        const textarea = form.querySelector('textarea');
-                        const username = toggle.getAttribute('data-username');
                         if (textarea) {
                             textarea.placeholder = `回复 @${username} ...`;
                         }
@@ -586,7 +578,7 @@
                 });
             });
 
-            // 绑定发送按钮（根据@按钮状态决定是否自动添加@）
+            // 绑定发送按钮
             document.querySelectorAll('.reply-form button').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
                     e.stopPropagation();
@@ -822,4 +814,4 @@
         }
     </script>
 </body>
-    </html>
+</html>
