@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>文档中心</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body {
+            background: #f5f7fa;
+            margin: 0;
+            padding: 0;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            position: relative;
+        }
+        .doc-content {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            line-height: 1.6;
+        }
+        .doc-content h1 { font-size: 1.8rem; margin-top: 0; }
+        .doc-content h2 { font-size: 1.4rem; margin-top: 1.5rem; }
+        .doc-content p { margin: 1rem 0; }
+        .doc-content blockquote {
+            border-left: 4px solid #0070f3;
+            padding-left: 1rem;
+            color: #555;
+            margin: 1rem 0;
+        }
+        .doc-content code {
+            background: #f0f0f0;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .doc-content pre {
+            background: #f0f0f0;
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+        .sidebar {
+            position: fixed;
+            top: 0;
+            right: -70%;
+            width: 70%;
+            max-width: 400px;
+            height: 100%;
+            background: white;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+            transition: right 0.3s ease;
+            z-index: 1000;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        .sidebar.open {
+            right: 0;
+        }
+        .sidebar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .sidebar-header h3 {
+            margin: 0;
+        }
+        .close-sidebar {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0 8px;
+        }
+        .tree {
+            list-style: none;
+            padding-left: 0;
+        }
+        .tree ul {
+            padding-left: 20px;
+            list-style: none;
+        }
+        .tree li {
+            margin: 8px 0;
+            cursor: pointer;
+        }
+        .folder > .folder-label {
+            font-weight: bold;
+            color: #0070f3;
+        }
+        .folder > .folder-label::before {
+            content: "📁 ";
+        }
+        .file {
+            color: #333;
+        }
+        .file::before {
+            content: "📄 ";
+        }
+        .folder-label, .file-label {
+            display: inline-block;
+            padding: 4px 0;
+        }
+        .folder-label:hover, .file-label:hover {
+            text-decoration: underline;
+        }
+        .menu-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: #0070f3;
+            color: white;
+            font-size: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 10px rgba(0,112,243,0.5);
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            z-index: 1000;
+        }
+        .menu-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 15px rgba(0,112,243,0.7);
+        }
+        .back-btn {
+            margin-bottom: 20px;
+            background: #0070f3;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 40px;
+            cursor: pointer;
+        }
+        .back-btn:hover {
+            background: #0051b3;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        @media (max-width: 600px) {
+            .sidebar {
+                width: 80%;
+                right: -80%;
+            }
+            .doc-content {
+                padding: 20px;
+            }
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <button class="back-btn" onclick="location.href='index.html'">← 返回主页</button>
+        <div id="doc-content" class="doc-content">
+            <div class="loading">加载文档中...</div>
+        </div>
+    </div>
+
+    <div id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <h3>📚 文档目录</h3>
+            <button class="close-sidebar" id="closeSidebarBtn">✕</button>
+        </div>
+        <div id="tree"></div>
+    </div>
+
+    <div id="menuBtn" class="menu-btn">☰</div>
+
+    <script>
+        let currentTree = null;
+        const sidebar = document.getElementById('sidebar');
+        const menuBtn = document.getElementById('menuBtn');
+        const closeSidebarBtn = document.getElementById('closeSidebarBtn');
+        const docContent = document.getElementById('doc-content');
+
+        function openSidebar() {
+            sidebar.classList.add('open');
+        }
+        function closeSidebar() {
+            sidebar.classList.remove('open');
+        }
+
+        menuBtn.addEventListener('click', openSidebar);
+        closeSidebarBtn.addEventListener('click', closeSidebar);
+        document.addEventListener('click', function(e) {
+            if (sidebar.classList.contains('open') && !sidebar.contains(e.target) && e.target !== menuBtn && !menuBtn.contains(e.target)) {
+                closeSidebar();
+            }
+        });
+
+        function renderTree(node) {
+            if (!node) return '';
+            if (node.type === 'file') {
+                return `<li class="file" data-path="${node.path || node.name}"><span class="file-label">${escapeHtml(node.name.replace('.md', ''))}</span></li>`;
+            }
+            if (node.type === 'folder') {
+                let childrenHtml = '';
+                if (node.children && node.children.length) {
+                    childrenHtml = '<ul>' + node.children.map(child => renderTree(child)).join('') + '</ul>';
+                }
+                return `<li class="folder">
+                            <span class="folder-label" data-folder="${node.name}">${escapeHtml(node.name)}</span>
+                            ${childrenHtml}
+                        </li>`;
+            }
+            return '';
+        }
+
+        async function loadTree() {
+            try {
+                const res = await fetch('/api/docs/list');
+                const data = await res.json();
+                if (data.success) {
+                    currentTree = data.data;
+                    const treeHtml = renderTree(currentTree);
+                    document.getElementById('tree').innerHTML = `<ul class="tree">${treeHtml}</ul>`;
+                    document.querySelectorAll('.folder-label').forEach(label => {
+                        label.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            const li = label.closest('li');
+                            const ul = li.querySelector('ul');
+                            if (ul) {
+                                ul.style.display = ul.style.display === 'none' ? '' : 'none';
+                            }
+                        });
+                    });
+                    document.querySelectorAll('.file').forEach(fileItem => {
+                        fileItem.addEventListener('click', async (e) => {
+                            const path = fileItem.getAttribute('data-path');
+                            if (path) {
+                                await loadDocument(path);
+                                closeSidebar();
+                            }
+                        });
+                    });
+                } else {
+                    document.getElementById('tree').innerHTML = '<p>加载目录失败</p>';
+                }
+            } catch (err) {
+                console.error(err);
+                document.getElementById('tree').innerHTML = '<p>网络错误</p>';
+            }
+        }
+
+        async function loadDocument(path) {
+            docContent.innerHTML = '<div class="loading">加载中...</div>';
+            try {
+                const res = await fetch(`/api/docs/content?path=${encodeURIComponent(path)}`);
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}`);
+                }
+                const markdown = await res.text();
+                const rawHtml = marked.parse(markdown);
+                const cleanHtml = DOMPurify.sanitize(rawHtml);
+                docContent.innerHTML = cleanHtml;
+            } catch (err) {
+                docContent.innerHTML = `<div class="loading" style="color:red;">加载失败: ${err.message}</div>`;
+            }
+        }
+
+        async function init() {
+            await loadTree();
+            // 默认加载“帮助/常见问题.md”，如果不存在则显示提示
+            loadDocument('帮助/常见问题.md').catch(() => {
+                docContent.innerHTML = '<div class="loading">请从右侧目录选择文档</div>';
+            });
+        }
+
+        init();
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+    </script>
+</body>
+</html>
