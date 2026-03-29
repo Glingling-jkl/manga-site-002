@@ -1,0 +1,29 @@
+{
+  "name": "docs",
+  "type": "folder",
+  "children": [
+    {
+      "name": "帮助",
+      "type": "folder",
+      "children": [
+        { "name": "常见问题.md", "type": "file", "path": "帮助/常见问题.md" },
+        { "name": "联系支持.md", "type": "file", "path": "帮助/联系支持.md" }
+      ]
+    },
+    {
+      "name": "隐私政策",
+      "type": "folder",
+      "children": [
+        { "name": "隐私政策.md", "type": "file", "path": "隐私政策/隐私政策.md" }
+      ]
+    },
+    {
+      "name": "更新日志",
+      "type": "folder",
+      "children": [
+        { "name": "v1.0.md", "type": "file", "path": "更新日志/v1.0.md" },
+        { "name": "v1.1.md", "type": "file", "path": "更新日志/v1.1.md" }
+      ]
+    }
+  ]
+}
