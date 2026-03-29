@@ -6,178 +6,304 @@
     <title>文档中心</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        body {
-            background: #f5f7fa;
+        * {
             margin: 0;
             padding: 0;
-            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            box-sizing: border-box;
         }
+
+        body {
+            background: #f8f9fc;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+            overflow-x: hidden;
+        }
+
+        /* 主内容区 */
         .container {
             max-width: 1000px;
             margin: 0 auto;
             padding: 20px;
-            position: relative;
+            transition: transform 0.3s ease;
         }
+
+        /* 文档内容样式 */
         .doc-content {
             background: white;
-            border-radius: 16px;
-            padding: 30px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-            line-height: 1.6;
-            min-height: 60vh;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+            line-height: 1.7;
+            color: #1e293b;
+            font-size: 1rem;
         }
-        .doc-content h1 { font-size: 1.8rem; margin-top: 0; }
-        .doc-content h2 { font-size: 1.4rem; margin-top: 1.5rem; }
-        .doc-content p { margin: 1rem 0; }
-        .doc-content blockquote {
-            border-left: 4px solid #0070f3;
-            padding-left: 1rem;
-            color: #555;
+
+        .doc-content h1 {
+            font-size: 1.8rem;
+            margin-top: 0;
+            margin-bottom: 1rem;
+            color: #0f172a;
+            font-weight: 600;
+        }
+        .doc-content h2 {
+            font-size: 1.4rem;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+            color: #1e293b;
+            font-weight: 500;
+        }
+        .doc-content p {
             margin: 1rem 0;
+            line-height: 1.7;
+        }
+        .doc-content blockquote {
+            border-left: 4px solid #3b82f6;
+            padding-left: 1rem;
+            color: #475569;
+            margin: 1rem 0;
+            background: #f1f5f9;
+            border-radius: 0 12px 12px 0;
         }
         .doc-content code {
-            background: #f0f0f0;
+            background: #f1f5f9;
             padding: 0.2rem 0.4rem;
-            border-radius: 4px;
-            font-family: monospace;
+            border-radius: 6px;
+            font-family: 'SF Mono', monospace;
+            font-size: 0.9rem;
         }
         .doc-content pre {
-            background: #f0f0f0;
+            background: #1e293b;
+            color: #e2e8f0;
             padding: 1rem;
-            border-radius: 8px;
+            border-radius: 12px;
             overflow-x: auto;
         }
+
+        /* 侧边栏 - 优雅毛玻璃效果 */
         .sidebar {
             position: fixed;
             top: 0;
-            right: -70%;
-            width: 70%;
-            max-width: 400px;
+            right: -100%;
+            width: 320px;
             height: 100%;
-            background: white;
-            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
-            transition: right 0.3s ease;
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(10px);
+            box-shadow: -4px 0 24px rgba(0, 0, 0, 0.05);
+            transition: right 0.4s cubic-bezier(0.2, 0.9, 0.4, 1.1);
             z-index: 1000;
             overflow-y: auto;
-            padding: 20px;
+            padding: 24px 20px;
+            border-left: 1px solid rgba(0, 0, 0, 0.05);
         }
+
         .sidebar.open {
             right: 0;
         }
+
         .sidebar-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 10px;
-            margin-bottom: 20px;
+            margin-bottom: 32px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #eef2f6;
         }
+
         .sidebar-header h3 {
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: #0f172a;
             margin: 0;
         }
+
+        /* 关闭按钮 - 左箭头 */
         .close-sidebar {
             background: none;
             border: none;
-            font-size: 1.5rem;
+            font-size: 1.4rem;
             cursor: pointer;
-            padding: 0 8px;
-        }
-        .tree {
-            list-style: none;
-            padding-left: 0;
-        }
-        .tree ul {
-            padding-left: 20px;
-            list-style: none;
-        }
-        .tree li {
-            margin: 8px 0;
-            cursor: pointer;
-        }
-        .folder > .folder-label {
-            font-weight: bold;
-            color: #0070f3;
-        }
-        .folder > .folder-label::before {
-            content: "📁 ";
-        }
-        .file {
-            color: #333;
-        }
-        .file::before {
-            content: "📄 ";
-        }
-        .folder-label, .file-label {
-            display: inline-block;
-            padding: 4px 0;
-        }
-        .folder-label:hover, .file-label:hover {
-            text-decoration: underline;
-        }
-        .menu-btn {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            width: 60px;
-            height: 60px;
+            padding: 8px;
+            color: #64748b;
+            transition: all 0.2s;
+            width: 36px;
+            height: 36px;
             border-radius: 50%;
-            background: #0070f3;
-            color: white;
-            font-size: 30px;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 4px 10px rgba(0,112,243,0.5);
+        }
+
+        .close-sidebar:hover {
+            background: #f1f5f9;
+            color: #0f172a;
+        }
+
+        /* 目录树 - 优雅列表 */
+        .tree {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .tree li {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* 文件夹项 */
+        .folder-item {
+            margin-bottom: 8px;
+        }
+
+        .folder-label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px;
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
+            border-radius: 12px;
+            transition: all 0.2s;
+            color: #334155;
+            font-size: 0.95rem;
+            font-weight: 500;
+        }
+
+        .folder-label:hover {
+            background: #f1f5f9;
+        }
+
+        .folder-name {
+            flex: 1;
+        }
+
+        /* 箭头符号 - 平滑旋转 */
+        .folder-arrow {
+            font-size: 1rem;
+            color: #94a3b8;
+            transition: transform 0.25s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+            display: inline-block;
+            width: 20px;
+            text-align: center;
+        }
+
+        .folder-arrow.rotated {
+            transform: rotate(90deg);
+        }
+
+        /* 子内容容器 - 动画效果 */
+        .folder-children {
+            overflow: hidden;
+            transition: max-height 0.4s cubic-bezier(0.33, 1, 0.68, 1);
+            max-height: 0;
+            margin-left: 0;
+        }
+
+        .folder-children.open {
+            max-height: 1000px;
+        }
+
+        /* 文件项 - 与文件夹同一排 */
+        .file-item {
+            padding: 10px 12px 10px 32px;
+            cursor: pointer;
+            border-radius: 12px;
+            transition: all 0.2s;
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+
+        .file-item:hover {
+            background: #f1f5f9;
+            color: #0f172a;
+        }
+
+        /* 无图标，无缩进，直接同排显示 */
+        .file-item .file-name {
+            display: block;
+        }
+
+        /* 菜单按钮 - 优雅圆形 */
+        .menu-btn {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 56px;
+            height: 56px;
+            border-radius: 28px;
+            background: #ffffff;
+            color: #3b82f6;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1);
             z-index: 1000;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            backdrop-filter: blur(8px);
+            background: rgba(255, 255, 255, 0.95);
         }
+
         .menu-btn:hover {
-            transform: scale(1.1);
-            box-shadow: 0 6px 15px rgba(0,112,243,0.7);
+            transform: scale(1.05);
+            box-shadow: 0 8px 24px rgba(59, 130, 246, 0.2);
         }
-        .back-btn {
-            margin-bottom: 20px;
-            background: #0070f3;
-            color: white;
-            border: none;
-            padding: 8px 20px;
-            border-radius: 40px;
-            cursor: pointer;
+
+        /* 当侧边栏打开时，菜单按钮变为左箭头 */
+        .menu-btn.left-arrow {
+            background: #ffffff;
+            color: #3b82f6;
         }
-        .back-btn:hover {
-            background: #0051b3;
+
+        .menu-btn.left-arrow::before {
+            content: "←";
         }
+
+        .menu-btn span {
+            display: none;
+        }
+
+        .menu-btn.left-arrow span {
+            display: none;
+        }
+
+        /* 加载状态 */
         .loading {
             text-align: center;
             padding: 40px;
-            color: #666;
+            color: #94a3b8;
         }
+
         .welcome-message {
             text-align: center;
             padding: 60px 20px;
-            color: #999;
+            color: #94a3b8;
         }
+
         .welcome-message h2 {
-            color: #0070f3;
-            margin-bottom: 10px;
+            color: #3b82f6;
+            margin-bottom: 12px;
+            font-weight: 500;
         }
+
         .retry-btn {
             margin-top: 20px;
-            padding: 8px 20px;
-            background: #0070f3;
+            padding: 8px 24px;
+            background: #3b82f6;
             color: white;
             border: none;
-            border-radius: 20px;
+            border-radius: 40px;
             cursor: pointer;
+            font-size: 0.9rem;
         }
+
         @media (max-width: 600px) {
             .sidebar {
-                width: 80%;
-                right: -80%;
+                width: 280px;
             }
             .doc-content {
-                padding: 20px;
+                padding: 24px;
             }
         }
     </style>
@@ -186,23 +312,21 @@
 </head>
 <body>
     <div class="container">
-        <button class="back-btn" onclick="location.href='index.html'">← 返回主页</button>
         <div id="doc-content" class="doc-content">
             <div class="welcome-message">
                 <h2>📚 文档中心</h2>
-                <p>请从右侧目录选择文档查看</p>
-                <p style="font-size: 0.8rem;">点击右下角 ☰ 按钮打开目录</p>
+                <p>点击右下角按钮打开目录</p>
             </div>
         </div>
     </div>
 
     <div id="sidebar" class="sidebar">
         <div class="sidebar-header">
-            <h3>📚 文档目录</h3>
-            <button class="close-sidebar" id="closeSidebarBtn">✕</button>
+            <h3>目录</h3>
+            <button class="close-sidebar" id="closeSidebarBtn">←</button>
         </div>
         <div id="tree">
-            <div class="loading">📂 加载目录中...</div>
+            <div class="loading">加载中...</div>
         </div>
     </div>
 
@@ -214,13 +338,28 @@
         const menuBtn = document.getElementById('menuBtn');
         const closeSidebarBtn = document.getElementById('closeSidebarBtn');
         const docContent = document.getElementById('doc-content');
+        let openFolderId = null; // 当前打开的文件夹ID
         let loadTimeout = null;
+
+        // 更新菜单按钮图标（侧边栏打开时显示左箭头）
+        function updateMenuButton() {
+            if (sidebar.classList.contains('open')) {
+                menuBtn.classList.add('left-arrow');
+                menuBtn.innerHTML = '<span></span>';
+            } else {
+                menuBtn.classList.remove('left-arrow');
+                menuBtn.innerHTML = '☰';
+            }
+        }
 
         function openSidebar() {
             sidebar.classList.add('open');
+            updateMenuButton();
         }
+
         function closeSidebar() {
             sidebar.classList.remove('open');
+            updateMenuButton();
         }
 
         menuBtn.addEventListener('click', openSidebar);
@@ -231,33 +370,75 @@
             }
         });
 
-        function renderTree(node) {
+        // 递归构建树形结构（无图标，仅文字）
+        function buildTreeHTML(node, level = 0, parentId = null) {
             if (!node) return '';
             if (node.type === 'file') {
-                return `<li class="file" data-path="${node.path || node.name}"><span class="file-label">${escapeHtml(node.name.replace('.md', ''))}</span></li>`;
+                return `<div class="file-item" data-path="${node.path || node.name}">
+                            <span class="file-name">${escapeHtml(node.name.replace('.md', ''))}</span>
+                        </div>`;
             }
             if (node.type === 'folder') {
-                let childrenHtml = '';
-                if (node.children && node.children.length) {
-                    childrenHtml = '<ul>' + node.children.map(child => renderTree(child)).join('') + '</ul>';
-                }
-                return `<li class="folder">
-                            <span class="folder-label" data-folder="${node.name}">${escapeHtml(node.name)}</span>
-                            ${childrenHtml}
-                        </li>`;
+                const folderId = 'folder_' + Date.now() + '_' + Math.random();
+                return `<div class="folder-item" data-folder-id="${folderId}">
+                            <div class="folder-label" data-folder="${node.name}" data-id="${folderId}">
+                                <span class="folder-name">${escapeHtml(node.name)}</span>
+                                <span class="folder-arrow">›</span>
+                            </div>
+                            <div class="folder-children" id="${folderId}-children">
+                                ${node.children ? node.children.map(child => buildTreeHTML(child, level + 1, folderId)).join('') : ''}
+                            </div>
+                        </div>`;
             }
             return '';
         }
 
+        // 重新排列文件夹位置（动画移出/移入）
+        function rearrangeFolders(clickedFolderElement, folderId) {
+            const treeContainer = document.getElementById('tree');
+            const allFolders = Array.from(treeContainer.querySelectorAll('.folder-item'));
+            const clickedIndex = allFolders.findIndex(f => f.getAttribute('data-folder-id') === folderId);
+            
+            if (clickedIndex === -1) return;
+            
+            const clickedFolder = allFolders[clickedIndex];
+            const otherFolders = allFolders.filter((_, idx) => idx !== clickedIndex);
+            
+            // 给其他文件夹添加动画类
+            otherFolders.forEach((folder, idx) => {
+                folder.style.transition = 'transform 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1), opacity 0.3s';
+                if (idx < clickedIndex) {
+                    // 上面的向上移出
+                    folder.style.transform = 'translateY(-100%)';
+                    folder.style.opacity = '0';
+                } else {
+                    // 下面的向下移出
+                    folder.style.transform = 'translateY(100%)';
+                    folder.style.opacity = '0';
+                }
+            });
+            
+            // 将点击的文件夹移到最顶部
+            setTimeout(() => {
+                // 重新排列DOM顺序
+                treeContainer.insertBefore(clickedFolder, treeContainer.firstChild);
+                
+                // 重置其他文件夹样式
+                otherFolders.forEach(folder => {
+                    folder.style.transform = '';
+                    folder.style.opacity = '';
+                });
+            }, 300);
+        }
+
         async function loadTree() {
             const treeDiv = document.getElementById('tree');
-            // 设置超时提示（5秒）
             loadTimeout = setTimeout(() => {
-                if (treeDiv.innerHTML.includes('加载目录中')) {
+                if (treeDiv.innerHTML.includes('加载中')) {
                     treeDiv.innerHTML = `
                         <div class="loading">
-                            <p>加载超时，请检查网络</p>
-                            <button class="retry-btn" onclick="loadTree()">重试</button>
+                            <p>加载超时</p>
+                            <button class="retry-btn" onclick="location.reload()">重试</button>
                         </div>
                     `;
                 }
@@ -269,21 +450,78 @@
                 const data = await res.json();
                 if (data.success) {
                     currentTree = data.data;
-                    const treeHtml = renderTree(currentTree);
-                    treeDiv.innerHTML = `<ul class="tree">${treeHtml}</ul>`;
-                    // 绑定文件夹折叠
+                    const treeHtml = buildTreeHTML(currentTree);
+                    treeDiv.innerHTML = treeHtml;
+                    
+                    // 绑定文件夹点击事件
                     document.querySelectorAll('.folder-label').forEach(label => {
                         label.addEventListener('click', (e) => {
                             e.stopPropagation();
-                            const li = label.closest('li');
-                            const ul = li.querySelector('ul');
-                            if (ul) {
-                                ul.style.display = ul.style.display === 'none' ? '' : 'none';
+                            const folderId = label.getAttribute('data-id');
+                            const childrenDiv = document.getElementById(`${folderId}-children`);
+                            const arrow = label.querySelector('.folder-arrow');
+                            const folderItem = label.closest('.folder-item');
+                            
+                            // 如果已经有打开的文件夹且不是当前这个，先关闭并移回
+                            if (openFolderId && openFolderId !== folderId) {
+                                const oldChildrenDiv = document.getElementById(`${openFolderId}-children`);
+                                const oldArrow = document.querySelector(`.folder-label[data-id="${openFolderId}"] .folder-arrow`);
+                                if (oldChildrenDiv) {
+                                    oldChildrenDiv.classList.remove('open');
+                                    if (oldArrow) oldArrow.classList.remove('rotated');
+                                }
+                                // 移回其他文件夹
+                                const treeContainer = document.getElementById('tree');
+                                const allFolders = Array.from(treeContainer.querySelectorAll('.folder-item'));
+                                allFolders.forEach(folder => {
+                                    folder.style.transform = '';
+                                    folder.style.opacity = '';
+                                });
+                            }
+                            
+                            // 切换当前文件夹
+                            if (childrenDiv.classList.contains('open')) {
+                                childrenDiv.classList.remove('open');
+                                arrow.classList.remove('rotated');
+                                openFolderId = null;
+                                // 移回所有文件夹
+                                const treeContainer = document.getElementById('tree');
+                                const allFolders = Array.from(treeContainer.querySelectorAll('.folder-item'));
+                                allFolders.forEach(folder => {
+                                    folder.style.transform = '';
+                                    folder.style.opacity = '';
+                                });
+                            } else {
+                                // 关闭其他所有文件夹的动画效果
+                                const treeContainer = document.getElementById('tree');
+                                const allFolders = Array.from(treeContainer.querySelectorAll('.folder-item'));
+                                allFolders.forEach(folder => {
+                                    if (folder !== folderItem) {
+                                        folder.style.transition = 'transform 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1), opacity 0.3s';
+                                        folder.style.transform = 'translateY(100%)';
+                                        folder.style.opacity = '0';
+                                    }
+                                });
+                                
+                                // 将当前文件夹移到最顶部
+                                setTimeout(() => {
+                                    treeContainer.insertBefore(folderItem, treeContainer.firstChild);
+                                    allFolders.forEach(folder => {
+                                        if (folder !== folderItem) {
+                                            folder.style.transform = '';
+                                            folder.style.opacity = '';
+                                        }
+                                    });
+                                    childrenDiv.classList.add('open');
+                                    arrow.classList.add('rotated');
+                                    openFolderId = folderId;
+                                }, 300);
                             }
                         });
                     });
+                    
                     // 绑定文件点击事件
-                    document.querySelectorAll('.file').forEach(fileItem => {
+                    document.querySelectorAll('.file-item').forEach(fileItem => {
                         fileItem.addEventListener('click', async (e) => {
                             const path = fileItem.getAttribute('data-path');
                             if (path) {
@@ -293,34 +531,29 @@
                         });
                     });
                 } else {
-                    treeDiv.innerHTML = `<div class="loading"><p>加载失败: ${escapeHtml(data.error)}</p><button class="retry-btn" onclick="loadTree()">重试</button></div>`;
+                    treeDiv.innerHTML = `<div class="loading"><p>加载失败</p><button class="retry-btn" onclick="location.reload()">重试</button></div>`;
                 }
             } catch (err) {
                 clearTimeout(loadTimeout);
                 console.error(err);
-                treeDiv.innerHTML = `<div class="loading"><p>网络错误，请稍后重试</p><button class="retry-btn" onclick="loadTree()">重试</button></div>`;
+                treeDiv.innerHTML = `<div class="loading"><p>网络错误</p><button class="retry-btn" onclick="location.reload()">重试</button></div>`;
             }
         }
 
         async function loadDocument(path) {
-            docContent.innerHTML = '<div class="loading">📖 加载文档中...</div>';
+            docContent.innerHTML = '<div class="loading">加载文档...</div>';
             try {
                 const res = await fetch(`/api/docs/content?path=${encodeURIComponent(path)}`);
-                if (!res.ok) {
-                    throw new Error(`HTTP ${res.status}`);
-                }
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const markdown = await res.text();
                 const rawHtml = marked.parse(markdown);
                 const cleanHtml = DOMPurify.sanitize(rawHtml);
                 docContent.innerHTML = cleanHtml;
             } catch (err) {
-                docContent.innerHTML = `<div class="loading" style="color:red;">❌ 加载失败: ${err.message}<br><br>请检查文件是否存在</div>`;
+                docContent.innerHTML = `<div class="loading" style="color:red;">加载失败: ${err.message}</div>`;
             }
         }
 
-        // 初始化：加载目录树
-        loadTree();
-        
         function escapeHtml(str) {
             if (!str) return '';
             return str.replace(/[&<>]/g, function(m) {
@@ -330,6 +563,8 @@
                 return m;
             });
         }
+
+        loadTree();
     </script>
 </body>
 </html>
