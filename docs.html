@@ -18,15 +18,12 @@
             overflow-x: hidden;
         }
 
-        /* 主内容区 */
         .container {
             max-width: 1000px;
             margin: 0 auto;
             padding: 20px;
-            transition: transform 0.3s ease;
         }
 
-        /* 文档内容样式 */
         .doc-content {
             background: white;
             border-radius: 20px;
@@ -39,7 +36,6 @@
 
         .doc-content h1 {
             font-size: 1.8rem;
-            margin-top: 0;
             margin-bottom: 1rem;
             color: #0f172a;
             font-weight: 600;
@@ -49,11 +45,9 @@
             margin-top: 2rem;
             margin-bottom: 1rem;
             color: #1e293b;
-            font-weight: 500;
         }
         .doc-content p {
             margin: 1rem 0;
-            line-height: 1.7;
         }
         .doc-content blockquote {
             border-left: 4px solid #3b82f6;
@@ -67,8 +61,7 @@
             background: #f1f5f9;
             padding: 0.2rem 0.4rem;
             border-radius: 6px;
-            font-family: 'SF Mono', monospace;
-            font-size: 0.9rem;
+            font-family: monospace;
         }
         .doc-content pre {
             background: #1e293b;
@@ -78,7 +71,7 @@
             overflow-x: auto;
         }
 
-        /* 侧边栏 - 优雅毛玻璃效果 */
+        /* 侧边栏 */
         .sidebar {
             position: fixed;
             top: 0;
@@ -112,49 +105,38 @@
             font-size: 1.1rem;
             font-weight: 500;
             color: #0f172a;
-            margin: 0;
         }
 
-        /* 关闭按钮 - 左箭头 */
+        /* 移除侧边栏内的关闭按钮 */
         .close-sidebar {
-            background: none;
-            border: none;
-            font-size: 1.4rem;
-            cursor: pointer;
-            padding: 8px;
-            color: #64748b;
-            transition: all 0.2s;
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            display: none;
         }
 
-        .close-sidebar:hover {
-            background: #f1f5f9;
-            color: #0f172a;
-        }
-
-        /* 目录树 - 优雅列表 */
+        /* 目录列表容器 */
         .tree {
             list-style: none;
             padding: 0;
             margin: 0;
+            position: relative;
         }
 
-        .tree li {
-            list-style: none;
-            margin: 0;
-            padding: 0;
-        }
-
-        /* 文件夹项 */
+        /* 文件夹项容器（用于动画） */
         .folder-item {
+            transition: all 0.3s ease;
             margin-bottom: 8px;
         }
 
+        /* 隐藏状态（移出屏幕） */
+        .folder-item.hidden {
+            transform: translateY(200%);
+            opacity: 0;
+            height: 0;
+            margin: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        /* 文件夹标签 */
         .folder-label {
             display: flex;
             align-items: center;
@@ -162,7 +144,7 @@
             padding: 10px 12px;
             cursor: pointer;
             border-radius: 12px;
-            transition: all 0.2s;
+            transition: background 0.2s;
             color: #334155;
             font-size: 0.95rem;
             font-weight: 500;
@@ -176,11 +158,10 @@
             flex: 1;
         }
 
-        /* 箭头符号 - 平滑旋转 */
         .folder-arrow {
             font-size: 1rem;
             color: #94a3b8;
-            transition: transform 0.25s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+            transition: transform 0.25s;
             display: inline-block;
             width: 20px;
             text-align: center;
@@ -190,10 +171,10 @@
             transform: rotate(90deg);
         }
 
-        /* 子内容容器 - 动画效果 */
+        /* 子内容容器 */
         .folder-children {
             overflow: hidden;
-            transition: max-height 0.4s cubic-bezier(0.33, 1, 0.68, 1);
+            transition: max-height 0.4s ease;
             max-height: 0;
             margin-left: 0;
         }
@@ -202,12 +183,12 @@
             max-height: 1000px;
         }
 
-        /* 文件项 - 与文件夹同一排 */
+        /* 文件项 */
         .file-item {
             padding: 10px 12px 10px 32px;
             cursor: pointer;
             border-radius: 12px;
-            transition: all 0.2s;
+            transition: background 0.2s;
             color: #64748b;
             font-size: 0.9rem;
         }
@@ -217,12 +198,7 @@
             color: #0f172a;
         }
 
-        /* 无图标，无缩进，直接同排显示 */
-        .file-item .file-name {
-            display: block;
-        }
-
-        /* 菜单按钮 - 优雅圆形 */
+        /* 菜单按钮 */
         .menu-btn {
             position: fixed;
             bottom: 24px;
@@ -238,7 +214,7 @@
             justify-content: center;
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
             cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+            transition: all 0.3s;
             z-index: 1000;
             border: 1px solid rgba(59, 130, 246, 0.2);
             backdrop-filter: blur(8px);
@@ -250,7 +226,7 @@
             box-shadow: 0 8px 24px rgba(59, 130, 246, 0.2);
         }
 
-        /* 当侧边栏打开时，菜单按钮变为左箭头 */
+        /* 侧边栏打开时，菜单按钮变为左箭头 */
         .menu-btn.left-arrow {
             background: #ffffff;
             color: #3b82f6;
@@ -258,6 +234,7 @@
 
         .menu-btn.left-arrow::before {
             content: "←";
+            font-size: 1.5rem;
         }
 
         .menu-btn span {
@@ -284,7 +261,6 @@
         .welcome-message h2 {
             color: #3b82f6;
             margin-bottom: 12px;
-            font-weight: 500;
         }
 
         .retry-btn {
@@ -295,7 +271,6 @@
             border: none;
             border-radius: 40px;
             cursor: pointer;
-            font-size: 0.9rem;
         }
 
         @media (max-width: 600px) {
@@ -323,7 +298,7 @@
     <div id="sidebar" class="sidebar">
         <div class="sidebar-header">
             <h3>目录</h3>
-            <button class="close-sidebar" id="closeSidebarBtn">←</button>
+            <!-- 移除关闭按钮，完全由菜单按钮控制 -->
         </div>
         <div id="tree">
             <div class="loading">加载中...</div>
@@ -336,16 +311,15 @@
         let currentTree = null;
         const sidebar = document.getElementById('sidebar');
         const menuBtn = document.getElementById('menuBtn');
-        const closeSidebarBtn = document.getElementById('closeSidebarBtn');
         const docContent = document.getElementById('doc-content');
-        let openFolderId = null; // 当前打开的文件夹ID
+        let currentOpenFolderId = null; // 当前打开的文件夹ID
         let loadTimeout = null;
 
-        // 更新菜单按钮图标（侧边栏打开时显示左箭头）
+        // 更新菜单按钮样式（根据侧边栏状态）
         function updateMenuButton() {
             if (sidebar.classList.contains('open')) {
                 menuBtn.classList.add('left-arrow');
-                menuBtn.innerHTML = '<span></span>';
+                menuBtn.innerHTML = '<span></span>'; // 清空内容，伪元素显示箭头
             } else {
                 menuBtn.classList.remove('left-arrow');
                 menuBtn.innerHTML = '☰';
@@ -360,18 +334,22 @@
         function closeSidebar() {
             sidebar.classList.remove('open');
             updateMenuButton();
+            // 关闭侧边栏时，重置文件夹状态（如果有必要）
+            if (currentOpenFolderId) {
+                // 可选：收起已打开的文件夹，但为了简单，可保留
+            }
         }
 
-        menuBtn.addEventListener('click', openSidebar);
-        closeSidebarBtn.addEventListener('click', closeSidebar);
-        document.addEventListener('click', function(e) {
-            if (sidebar.classList.contains('open') && !sidebar.contains(e.target) && e.target !== menuBtn && !menuBtn.contains(e.target)) {
+        menuBtn.addEventListener('click', () => {
+            if (sidebar.classList.contains('open')) {
                 closeSidebar();
+            } else {
+                openSidebar();
             }
         });
 
-        // 递归构建树形结构（无图标，仅文字）
-        function buildTreeHTML(node, level = 0, parentId = null) {
+        // 构建树形结构（无图标）
+        function buildTreeHTML(node) {
             if (!node) return '';
             if (node.type === 'file') {
                 return `<div class="file-item" data-path="${node.path || node.name}">
@@ -379,56 +357,61 @@
                         </div>`;
             }
             if (node.type === 'folder') {
-                const folderId = 'folder_' + Date.now() + '_' + Math.random();
+                const folderId = 'f_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
                 return `<div class="folder-item" data-folder-id="${folderId}">
-                            <div class="folder-label" data-folder="${node.name}" data-id="${folderId}">
+                            <div class="folder-label" data-folder-id="${folderId}">
                                 <span class="folder-name">${escapeHtml(node.name)}</span>
                                 <span class="folder-arrow">›</span>
                             </div>
                             <div class="folder-children" id="${folderId}-children">
-                                ${node.children ? node.children.map(child => buildTreeHTML(child, level + 1, folderId)).join('') : ''}
+                                ${node.children ? node.children.map(child => buildTreeHTML(child)).join('') : ''}
                             </div>
                         </div>`;
             }
             return '';
         }
 
-        // 重新排列文件夹位置（动画移出/移入）
-        function rearrangeFolders(clickedFolderElement, folderId) {
+        // 重新排列：隐藏其他文件夹，将当前文件夹移到顶部并展开
+        function activateFolder(folderItem, folderId) {
             const treeContainer = document.getElementById('tree');
             const allFolders = Array.from(treeContainer.querySelectorAll('.folder-item'));
-            const clickedIndex = allFolders.findIndex(f => f.getAttribute('data-folder-id') === folderId);
             
-            if (clickedIndex === -1) return;
-            
-            const clickedFolder = allFolders[clickedIndex];
-            const otherFolders = allFolders.filter((_, idx) => idx !== clickedIndex);
-            
-            // 给其他文件夹添加动画类
-            otherFolders.forEach((folder, idx) => {
-                folder.style.transition = 'transform 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1), opacity 0.3s';
-                if (idx < clickedIndex) {
-                    // 上面的向上移出
-                    folder.style.transform = 'translateY(-100%)';
-                    folder.style.opacity = '0';
+            // 隐藏所有其他文件夹（添加 hidden 类）
+            allFolders.forEach(folder => {
+                if (folder !== folderItem) {
+                    folder.classList.add('hidden');
                 } else {
-                    // 下面的向下移出
-                    folder.style.transform = 'translateY(100%)';
-                    folder.style.opacity = '0';
+                    folder.classList.remove('hidden');
                 }
             });
             
-            // 将点击的文件夹移到最顶部
-            setTimeout(() => {
-                // 重新排列DOM顺序
-                treeContainer.insertBefore(clickedFolder, treeContainer.firstChild);
-                
-                // 重置其他文件夹样式
-                otherFolders.forEach(folder => {
-                    folder.style.transform = '';
-                    folder.style.opacity = '';
-                });
-            }, 300);
+            // 将当前文件夹移到顶部
+            treeContainer.insertBefore(folderItem, treeContainer.firstChild);
+            
+            // 展开当前文件夹的子内容
+            const childrenDiv = document.getElementById(`${folderId}-children`);
+            const arrow = folderItem.querySelector('.folder-arrow');
+            if (childrenDiv && !childrenDiv.classList.contains('open')) {
+                childrenDiv.classList.add('open');
+                arrow.classList.add('rotated');
+            }
+            currentOpenFolderId = folderId;
+        }
+
+        // 重置所有文件夹（取消隐藏，收起展开的）
+        function resetAllFolders() {
+            const treeContainer = document.getElementById('tree');
+            const allFolders = Array.from(treeContainer.querySelectorAll('.folder-item'));
+            allFolders.forEach(folder => {
+                folder.classList.remove('hidden');
+                const childrenDiv = folder.querySelector('.folder-children');
+                const arrow = folder.querySelector('.folder-arrow');
+                if (childrenDiv && childrenDiv.classList.contains('open')) {
+                    childrenDiv.classList.remove('open');
+                    arrow.classList.remove('rotated');
+                }
+            });
+            currentOpenFolderId = null;
         }
 
         async function loadTree() {
@@ -457,65 +440,26 @@
                     document.querySelectorAll('.folder-label').forEach(label => {
                         label.addEventListener('click', (e) => {
                             e.stopPropagation();
-                            const folderId = label.getAttribute('data-id');
-                            const childrenDiv = document.getElementById(`${folderId}-children`);
-                            const arrow = label.querySelector('.folder-arrow');
+                            const folderId = label.getAttribute('data-folder-id');
                             const folderItem = label.closest('.folder-item');
                             
-                            // 如果已经有打开的文件夹且不是当前这个，先关闭并移回
-                            if (openFolderId && openFolderId !== folderId) {
-                                const oldChildrenDiv = document.getElementById(`${openFolderId}-children`);
-                                const oldArrow = document.querySelector(`.folder-label[data-id="${openFolderId}"] .folder-arrow`);
-                                if (oldChildrenDiv) {
-                                    oldChildrenDiv.classList.remove('open');
-                                    if (oldArrow) oldArrow.classList.remove('rotated');
-                                }
-                                // 移回其他文件夹
-                                const treeContainer = document.getElementById('tree');
-                                const allFolders = Array.from(treeContainer.querySelectorAll('.folder-item'));
-                                allFolders.forEach(folder => {
-                                    folder.style.transform = '';
-                                    folder.style.opacity = '';
-                                });
+                            // 如果当前已有打开的文件夹且不是这个，先重置所有（清除隐藏和展开）
+                            if (currentOpenFolderId && currentOpenFolderId !== folderId) {
+                                resetAllFolders();
                             }
                             
-                            // 切换当前文件夹
-                            if (childrenDiv.classList.contains('open')) {
+                            // 检查当前文件夹是否已经展开（如果已展开，则收起并重置）
+                            const childrenDiv = document.getElementById(`${folderId}-children`);
+                            const arrow = label.querySelector('.folder-arrow');
+                            if (childrenDiv && childrenDiv.classList.contains('open')) {
+                                // 当前已展开，则收起并重置所有
                                 childrenDiv.classList.remove('open');
                                 arrow.classList.remove('rotated');
-                                openFolderId = null;
-                                // 移回所有文件夹
-                                const treeContainer = document.getElementById('tree');
-                                const allFolders = Array.from(treeContainer.querySelectorAll('.folder-item'));
-                                allFolders.forEach(folder => {
-                                    folder.style.transform = '';
-                                    folder.style.opacity = '';
-                                });
+                                resetAllFolders();
+                                currentOpenFolderId = null;
                             } else {
-                                // 关闭其他所有文件夹的动画效果
-                                const treeContainer = document.getElementById('tree');
-                                const allFolders = Array.from(treeContainer.querySelectorAll('.folder-item'));
-                                allFolders.forEach(folder => {
-                                    if (folder !== folderItem) {
-                                        folder.style.transition = 'transform 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1), opacity 0.3s';
-                                        folder.style.transform = 'translateY(100%)';
-                                        folder.style.opacity = '0';
-                                    }
-                                });
-                                
-                                // 将当前文件夹移到最顶部
-                                setTimeout(() => {
-                                    treeContainer.insertBefore(folderItem, treeContainer.firstChild);
-                                    allFolders.forEach(folder => {
-                                        if (folder !== folderItem) {
-                                            folder.style.transform = '';
-                                            folder.style.opacity = '';
-                                        }
-                                    });
-                                    childrenDiv.classList.add('open');
-                                    arrow.classList.add('rotated');
-                                    openFolderId = folderId;
-                                }, 300);
+                                // 未展开，则激活该文件夹
+                                activateFolder(folderItem, folderId);
                             }
                         });
                     });
