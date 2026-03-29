@@ -326,9 +326,17 @@
             if (sidebar.classList.contains('open')) {
                 menuBtn.classList.add('left-arrow');
                 menuBtn.innerHTML = '<span></span>';
+                // 侧边栏打开时，点击按钮返回主页
+                menuBtn.onclick = () => {
+                    window.location.href = 'index.html';
+                };
             } else {
                 menuBtn.classList.remove('left-arrow');
                 menuBtn.innerHTML = '☰';
+                // 侧边栏关闭时，点击按钮打开侧边栏
+                menuBtn.onclick = () => {
+                    openSidebar();
+                };
             }
         }
 
@@ -342,8 +350,13 @@
             updateMenuButton();
         }
 
-        menuBtn.addEventListener('click', openSidebar);
+        // 初始设置按钮行为（侧边栏关闭状态）
+        updateMenuButton();
+
+        // 关闭按钮事件
         closeSidebarBtn.addEventListener('click', closeSidebar);
+
+        // 点击页面其他地方关闭侧边栏
         document.addEventListener('click', function(e) {
             if (sidebar.classList.contains('open') && !sidebar.contains(e.target) && e.target !== menuBtn && !menuBtn.contains(e.target)) {
                 closeSidebar();
