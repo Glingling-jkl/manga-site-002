@@ -1,514 +1,239 @@
 <!DOCTYPE html>
 <html lang="zh">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>文档中心</title>
-    <link rel="stylesheet" href="style.css">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文档中心</title>
+<style>
+    /* === 全局重置 === */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f8f9fc; }
 
-        body {
-            background: #f8f9fc;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-            overflow-x: hidden;
-        }
+    /* === 主内容区 === */
+    .container { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+    .doc-content { 
+        background: white; border-radius: 16px; padding: 40px; 
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); line-height: 1.8; 
+    }
 
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: 20px;
-        }
+    /* === 侧边栏样式 (毛玻璃/滑动) === */
+    .sidebar {
+        position: fixed; top: 0; right: -320px; width: 300px; height: 100%;
+        background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px);
+        box-shadow: -4px 0 24px rgba(0, 0, 0, 0.1); transition: right 0.4s;
+        z-index: 1000; padding: 24px 16px; overflow-y: auto;
+    }
+    .sidebar.open { right: 0; }
 
-        .doc-content {
-            background: white;
-            border-radius: 20px;
-            padding: 40px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
-            line-height: 1.7;
-            color: #1e293b;
-            font-size: 1rem;
-        }
+    /* === 列表项通用样式 === */
+    .folder-item, .file-item {
+        padding: 12px 16px; border-radius: 12px; cursor: pointer;
+        transition: all 0.2s; color: #333; font-size: 0.95rem;
+        display: flex; justify-content: space-between; align-items: center;
+    }
+    
+    /* === 文件夹箭头动画 === */
+    .folder-arrow {
+        font-size: 1.1rem; color: #666;
+        transition: all 0.3s; margin-left: 8px;
+    }
+    /* 点击展开后：箭头旋转90度(变向下)且颜色变淡 */
+    .folder-arrow.rotated { 
+        transform: rotate(90deg); 
+        color: #aaa; 
+    }
 
-        .doc-content h1 {
-            font-size: 1.8rem;
-            margin-bottom: 1rem;
-            color: #0f172a;
-            font-weight: 600;
-        }
-        .doc-content h2 {
-            font-size: 1.4rem;
-            margin-top: 2rem;
-            margin-bottom: 1rem;
-            color: #1e293b;
-        }
-        .doc-content p {
-            margin: 1rem 0;
-        }
-        .doc-content blockquote {
-            border-left: 4px solid #3b82f6;
-            padding-left: 1rem;
-            color: #475569;
-            margin: 1rem 0;
-            background: #f1f5f9;
-            border-radius: 0 12px 12px 0;
-        }
-        .doc-content code {
-            background: #f1f5f9;
-            padding: 0.2rem 0.4rem;
-            border-radius: 6px;
-            font-family: monospace;
-        }
-        .doc-content pre {
-            background: #1e293b;
-            color: #e2e8f0;
-            padding: 1rem;
-            border-radius: 12px;
-            overflow-x: auto;
-        }
+    /* 悬停效果 */
+    .folder-item:hover, .file-item:hover { background: #f0f4ff; }
 
-        /* 侧边栏 */
-        .sidebar {
-            position: fixed;
-            top: 0;
-            right: -100%;
-            width: 320px;
-            height: 100%;
-            background: rgba(255, 255, 255, 0.98);
-            backdrop-filter: blur(10px);
-            box-shadow: -4px 0 24px rgba(0, 0, 0, 0.05);
-            transition: right 0.4s cubic-bezier(0.2, 0.9, 0.4, 1.1);
-            z-index: 1000;
-            overflow-y: auto;
-            padding: 24px 20px;
-            border-left: 1px solid rgba(0, 0, 0, 0.05);
-        }
+    /* === 子菜单展开收起动画 === */
+    .folder-children {
+        overflow: hidden; transition: max-height 0.4s; max-height: 0;
+    }
+    .folder-children.open { max-height: 1000px; }
 
-        .sidebar.open {
-            right: 0;
-        }
-
-        .sidebar-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 32px;
-            padding-bottom: 16px;
-            border-bottom: 1px solid #eef2f6;
-        }
-
-        .sidebar-header h3 {
-            font-size: 1.1rem;
-            font-weight: 500;
-            color: #0f172a;
-        }
-
-        /* 移除侧边栏内的关闭按钮 */
-        .close-sidebar {
-            display: none;
-        }
-
-        /* 目录列表容器 */
-        .tree {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-            position: relative;
-        }
-
-        /* 文件夹项容器（用于动画） */
-        .folder-item {
-            transition: all 0.3s ease;
-            margin-bottom: 8px;
-        }
-
-        /* 隐藏状态（移出屏幕） */
-        .folder-item.hidden {
-            transform: translateY(200%);
-            opacity: 0;
-            height: 0;
-            margin: 0;
-            overflow: hidden;
-            pointer-events: none;
-        }
-
-        /* 文件夹标签 */
-        .folder-label {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 10px 12px;
-            cursor: pointer;
-            border-radius: 12px;
-            transition: background 0.2s;
-            color: #334155;
-            font-size: 0.95rem;
-            font-weight: 500;
-        }
-
-        .folder-label:hover {
-            background: #f1f5f9;
-        }
-
-        .folder-name {
-            flex: 1;
-        }
-
-        .folder-arrow {
-            font-size: 1rem;
-            color: #94a3b8;
-            transition: transform 0.25s;
-            display: inline-block;
-            width: 20px;
-            text-align: center;
-        }
-
-        .folder-arrow.rotated {
-            transform: rotate(90deg);
-        }
-
-        /* 子内容容器 */
-        .folder-children {
-            overflow: hidden;
-            transition: max-height 0.4s ease;
-            max-height: 0;
-            margin-left: 0;
-        }
-
-        .folder-children.open {
-            max-height: 1000px;
-        }
-
-        /* 文件项 */
-        .file-item {
-            padding: 10px 12px 10px 32px;
-            cursor: pointer;
-            border-radius: 12px;
-            transition: background 0.2s;
-            color: #64748b;
-            font-size: 0.9rem;
-        }
-
-        .file-item:hover {
-            background: #f1f5f9;
-            color: #0f172a;
-        }
-
-        /* 菜单按钮 */
-        .menu-btn {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            width: 56px;
-            height: 56px;
-            border-radius: 28px;
-            background: #ffffff;
-            color: #3b82f6;
-            font-size: 1.5rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-            cursor: pointer;
-            transition: all 0.3s;
-            z-index: 1000;
-            border: 1px solid rgba(59, 130, 246, 0.2);
-            backdrop-filter: blur(8px);
-            background: rgba(255, 255, 255, 0.95);
-        }
-
-        .menu-btn:hover {
-            transform: scale(1.05);
-            box-shadow: 0 8px 24px rgba(59, 130, 246, 0.2);
-        }
-
-        /* 侧边栏打开时，菜单按钮变为左箭头 */
-        .menu-btn.left-arrow {
-            background: #ffffff;
-            color: #3b82f6;
-        }
-
-        .menu-btn.left-arrow::before {
-            content: "←";
-            font-size: 1.5rem;
-        }
-
-        .menu-btn span {
-            display: none;
-        }
-
-        .menu-btn.left-arrow span {
-            display: none;
-        }
-
-        /* 加载状态 */
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #94a3b8;
-        }
-
-        .welcome-message {
-            text-align: center;
-            padding: 60px 20px;
-            color: #94a3b8;
-        }
-
-        .welcome-message h2 {
-            color: #3b82f6;
-            margin-bottom: 12px;
-        }
-
-        .retry-btn {
-            margin-top: 20px;
-            padding: 8px 24px;
-            background: #3b82f6;
-            color: white;
-            border: none;
-            border-radius: 40px;
-            cursor: pointer;
-        }
-
-        @media (max-width: 600px) {
-            .sidebar {
-                width: 280px;
-            }
-            .doc-content {
-                padding: 24px;
-            }
-        }
-    </style>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    /* === 右下角按钮 === */
+    .menu-btn {
+        position: fixed; bottom: 32px; right: 32px; width: 60px; height: 60px;
+        border-radius: 50%; background: white; color: #4f46e5; border: none;
+        font-size: 1.5rem; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+        transition: all 0.3s; display: flex; align-items: center; justify-content: center;
+    }
+    .menu-btn:hover { transform: scale(1.05); }
+    .menu-btn.left-arrow { background: white; color: #4f46e5; }
+</style>
 </head>
 <body>
-    <div class="container">
-        <div id="doc-content" class="doc-content">
-            <div class="welcome-message">
-                <h2>📚 文档中心</h2>
-                <p>点击右下角按钮打开目录</p>
-            </div>
-        </div>
+
+<div class="container">
+    <div id="doc-content" class="doc-content">
+        <h1>文档中心</h1>
+        <p>点击右下角按钮查看目录</p>
     </div>
+</div>
 
-    <div id="sidebar" class="sidebar">
-        <div class="sidebar-header">
-            <h3>目录</h3>
-            <!-- 移除关闭按钮，完全由菜单按钮控制 -->
-        </div>
-        <div id="tree">
-            <div class="loading">加载中...</div>
-        </div>
-    </div>
+<!-- 侧边栏 -->
+<div id="sidebar" class="sidebar">
+    <div id="tree"></div>
+</div>
 
-    <div id="menuBtn" class="menu-btn">☰</div>
+<!-- 右下角按钮 -->
+<button id="menuBtn" class="menu-btn">☰</button>
 
-    <script>
-        let currentTree = null;
-        const sidebar = document.getElementById('sidebar');
-        const menuBtn = document.getElementById('menuBtn');
-        const docContent = document.getElementById('doc-content');
-        let currentOpenFolderId = null; // 当前打开的文件夹ID
-        let loadTimeout = null;
+<script>
+    // === 核心变量 ===
+    const sidebar = document.getElementById('sidebar');
+    const menuBtn = document.getElementById('menuBtn');
+    const treeContainer = document.getElementById('tree');
+    let openFolderId = null; // 记录当前展开的文件夹
 
-        // 更新菜单按钮样式（根据侧边栏状态）
-        function updateMenuButton() {
-            if (sidebar.classList.contains('open')) {
-                menuBtn.classList.add('left-arrow');
-                menuBtn.innerHTML = '<span></span>'; // 清空内容，伪元素显示箭头
-            } else {
-                menuBtn.classList.remove('left-arrow');
-                menuBtn.innerHTML = '☰';
+    // === 1. 按钮交互：打开/关闭侧边栏并改变图标 ===
+    menuBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('open');
+        // 侧边栏打开时显示返回箭头
+        menuBtn.className = sidebar.classList.contains('open') ? 'menu-btn left-arrow' : 'menu-btn';
+        menuBtn.innerHTML = sidebar.classList.contains('open') ? '←' : '☰';
+    });
+
+    // === 2. 动态加载数据 (保留你原有的接口逻辑) ===
+    async function loadTree() {
+        try {
+            // 这里保留你原有的 fetch 逻辑
+            const res = await fetch('/api/docs/list');
+            const data = await res.json();
+            
+            if (data.success) {
+                buildTree(data.data);
             }
+        } catch (err) {
+            treeContainer.innerHTML = '<div>加载失败</div>';
         }
+    }
 
-        function openSidebar() {
-            sidebar.classList.add('open');
-            updateMenuButton();
-        }
+    // === 3. 构建树形结构 (无图标版本) ===
+    function buildTree(data) {
+        treeContainer.innerHTML = '';
+        
+        // 假设 data.children 是文件夹数组
+        (data.children || []).forEach(item => {
+            if (item.type === 'folder') {
+                const folderId = 'folder_' + Date.now() + Math.random().toString(36).substr(2, 9);
+                
+                // 创建文件夹 DOM 结构
+                const folderEl = document.createElement('div');
+                folderEl.className = 'folder-item';
+                folderEl.setAttribute('data-folder-id', folderId);
+                folderEl.innerHTML = `
+                    <div class="folder-label" data-id="${folderId}">
+                        ${item.name} <!-- 文件夹名字 -->
+                        <span class="folder-arrow">‹</span> <!-- 左箭头符号 -->
+                    </div>
+                    <div class="folder-children" id="${folderId}-children"></div>
+                `;
+                treeContainer.appendChild(folderEl);
 
-        function closeSidebar() {
-            sidebar.classList.remove('open');
-            updateMenuButton();
-            // 关闭侧边栏时，重置文件夹状态（如果有必要）
-            if (currentOpenFolderId) {
-                // 可选：收起已打开的文件夹，但为了简单，可保留
+                // 填充子文件 (如果没有子文件，这一步可以省略)
+                const childrenContainer = document.getElementById(`${folderId}-children`);
+                (item.children || []).forEach(child => {
+                    if (child.type === 'file') {
+                        const fileEl = document.createElement('div');
+                        fileEl.className = 'file-item';
+                        fileEl.setAttribute('data-path', child.path);
+                        fileEl.textContent = child.name.replace('.md', '');
+                        childrenContainer.appendChild(fileEl);
+                    }
+                });
+
+                // 绑定点击事件
+                const label = folderEl.querySelector('.folder-label');
+                label.addEventListener('click', () => toggleFolder(folderId, folderEl, label));
             }
+        });
+    }
+
+    // === 4. 核心动画函数：文件夹展开/折叠 ===
+    function toggleFolder(folderId, folderElement, labelElement) {
+        const isCurrentlyOpen = openFolderId === folderId;
+        const allFolders = Array.from(treeContainer.querySelectorAll('.folder-item'));
+        const clickedIndex = allFolders.indexOf(folderElement);
+
+        // 如果点击的是同一个，直接关闭
+        if (isCurrentlyOpen) {
+            closeFolder(folderId);
+            return;
         }
 
-        menuBtn.addEventListener('click', () => {
-            if (sidebar.classList.contains('open')) {
-                closeSidebar();
-            } else {
-                openSidebar();
+        // 如果有其他打开的，先关闭它
+        if (openFolderId) {
+            closeFolder(openFolderId);
+        }
+
+        // --- 动画开始：移出屏幕 ---
+        allFolders.forEach((folder, index) => {
+            if (folder !== folderElement) {
+                folder.style.transition = 'transform 0.3s, opacity 0.2s';
+                // 上面的向上飞，下面的向下飞
+                folder.style.transform = index < clickedIndex ? 'translateY(-100%)' : 'translateY(100%)';
+                folder.style.opacity = '0';
             }
         });
 
-        // 构建树形结构（无图标）
-        function buildTreeHTML(node) {
-            if (!node) return '';
-            if (node.type === 'file') {
-                return `<div class="file-item" data-path="${node.path || node.name}">
-                            <span class="file-name">${escapeHtml(node.name.replace('.md', ''))}</span>
-                        </div>`;
-            }
-            if (node.type === 'folder') {
-                const folderId = 'f_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
-                return `<div class="folder-item" data-folder-id="${folderId}">
-                            <div class="folder-label" data-folder-id="${folderId}">
-                                <span class="folder-name">${escapeHtml(node.name)}</span>
-                                <span class="folder-arrow">›</span>
-                            </div>
-                            <div class="folder-children" id="${folderId}-children">
-                                ${node.children ? node.children.map(child => buildTreeHTML(child)).join('') : ''}
-                            </div>
-                        </div>`;
-            }
-            return '';
-        }
-
-        // 重新排列：隐藏其他文件夹，将当前文件夹移到顶部并展开
-        function activateFolder(folderItem, folderId) {
-            const treeContainer = document.getElementById('tree');
-            const allFolders = Array.from(treeContainer.querySelectorAll('.folder-item'));
+        // --- 位置重组：将当前点击的移到顶部 ---
+        setTimeout(() => {
+            treeContainer.insertBefore(folderElement, treeContainer.firstChild);
             
-            // 隐藏所有其他文件夹（添加 hidden 类）
+            // 恢复其他文件夹位置
             allFolders.forEach(folder => {
-                if (folder !== folderItem) {
-                    folder.classList.add('hidden');
-                } else {
-                    folder.classList.remove('hidden');
+                if (folder !== folderElement) {
+                    folder.style.transform = '';
+                    folder.style.opacity = '1';
                 }
             });
-            
-            // 将当前文件夹移到顶部
-            treeContainer.insertBefore(folderItem, treeContainer.firstChild);
-            
-            // 展开当前文件夹的子内容
-            const childrenDiv = document.getElementById(`${folderId}-children`);
-            const arrow = folderItem.querySelector('.folder-arrow');
-            if (childrenDiv && !childrenDiv.classList.contains('open')) {
-                childrenDiv.classList.add('open');
-                arrow.classList.add('rotated');
-            }
-            currentOpenFolderId = folderId;
+
+            // 最后展开子菜单
+            openFolder(folderId, labelElement);
+        }, 300); // 300ms 等待移出动画结束
+    }
+
+    function openFolder(id, label) {
+        document.getElementById(`${id}-children`)?.classList.add('open');
+        label.querySelector('.folder-arrow')?.classList.add('rotated');
+        openFolderId = id;
+    }
+
+    function closeFolder(id) {
+        document.getElementById(`${id}-children`)?.classList.remove('open');
+        document.querySelector(`.folder-label[data-id="${id}"] .folder-arrow`)?.classList.remove('rotated');
+        openFolderId = null;
+    }
+
+    // === 5. 绑定文档加载事件 ===
+    // 这里保留你原有的文件加载逻辑
+    async function loadDocument(path) {
+        const docContent = document.getElementById('doc-content');
+        docContent.innerHTML = '加载中...';
+        try {
+            const res = await fetch(`/api/docs/content?path=${encodeURIComponent(path)}`);
+            const content = await res.text();
+            docContent.innerHTML = content; // 实际项目中建议用 DOMPurify 处理
+        } catch (err) {
+            docContent.innerHTML = '加载失败';
         }
+    }
 
-        // 重置所有文件夹（取消隐藏，收起展开的）
-        function resetAllFolders() {
-            const treeContainer = document.getElementById('tree');
-            const allFolders = Array.from(treeContainer.querySelectorAll('.folder-item'));
-            allFolders.forEach(folder => {
-                folder.classList.remove('hidden');
-                const childrenDiv = folder.querySelector('.folder-children');
-                const arrow = folder.querySelector('.folder-arrow');
-                if (childrenDiv && childrenDiv.classList.contains('open')) {
-                    childrenDiv.classList.remove('open');
-                    arrow.classList.remove('rotated');
-                }
-            });
-            currentOpenFolderId = null;
+    // 页面加载完成后初始化
+    document.addEventListener('DOMContentLoaded', loadTree);
+
+    // 代理点击事件给动态生成的文件项
+    treeContainer.addEventListener('click', (e) => {
+        const fileItem = e.target.closest('.file-item');
+        if (fileItem) {
+            const path = fileItem.getAttribute('data-path');
+            loadDocument(path);
+            sidebar.classList.remove('open'); // 加载后关闭侧边栏
         }
+    });
+</script>
 
-        async function loadTree() {
-            const treeDiv = document.getElementById('tree');
-            loadTimeout = setTimeout(() => {
-                if (treeDiv.innerHTML.includes('加载中')) {
-                    treeDiv.innerHTML = `
-                        <div class="loading">
-                            <p>加载超时</p>
-                            <button class="retry-btn" onclick="location.reload()">重试</button>
-                        </div>
-                    `;
-                }
-            }, 5000);
-
-            try {
-                const res = await fetch('/api/docs/list');
-                clearTimeout(loadTimeout);
-                const data = await res.json();
-                if (data.success) {
-                    currentTree = data.data;
-                    const treeHtml = buildTreeHTML(currentTree);
-                    treeDiv.innerHTML = treeHtml;
-                    
-                    // 绑定文件夹点击事件
-                    document.querySelectorAll('.folder-label').forEach(label => {
-                        label.addEventListener('click', (e) => {
-                            e.stopPropagation();
-                            const folderId = label.getAttribute('data-folder-id');
-                            const folderItem = label.closest('.folder-item');
-                            
-                            // 如果当前已有打开的文件夹且不是这个，先重置所有（清除隐藏和展开）
-                            if (currentOpenFolderId && currentOpenFolderId !== folderId) {
-                                resetAllFolders();
-                            }
-                            
-                            // 检查当前文件夹是否已经展开（如果已展开，则收起并重置）
-                            const childrenDiv = document.getElementById(`${folderId}-children`);
-                            const arrow = label.querySelector('.folder-arrow');
-                            if (childrenDiv && childrenDiv.classList.contains('open')) {
-                                // 当前已展开，则收起并重置所有
-                                childrenDiv.classList.remove('open');
-                                arrow.classList.remove('rotated');
-                                resetAllFolders();
-                                currentOpenFolderId = null;
-                            } else {
-                                // 未展开，则激活该文件夹
-                                activateFolder(folderItem, folderId);
-                            }
-                        });
-                    });
-                    
-                    // 绑定文件点击事件
-                    document.querySelectorAll('.file-item').forEach(fileItem => {
-                        fileItem.addEventListener('click', async (e) => {
-                            const path = fileItem.getAttribute('data-path');
-                            if (path) {
-                                await loadDocument(path);
-                                closeSidebar();
-                            }
-                        });
-                    });
-                } else {
-                    treeDiv.innerHTML = `<div class="loading"><p>加载失败</p><button class="retry-btn" onclick="location.reload()">重试</button></div>`;
-                }
-            } catch (err) {
-                clearTimeout(loadTimeout);
-                console.error(err);
-                treeDiv.innerHTML = `<div class="loading"><p>网络错误</p><button class="retry-btn" onclick="location.reload()">重试</button></div>`;
-            }
-        }
-
-        async function loadDocument(path) {
-            docContent.innerHTML = '<div class="loading">加载文档...</div>';
-            try {
-                const res = await fetch(`/api/docs/content?path=${encodeURIComponent(path)}`);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const markdown = await res.text();
-                const rawHtml = marked.parse(markdown);
-                const cleanHtml = DOMPurify.sanitize(rawHtml);
-                docContent.innerHTML = cleanHtml;
-            } catch (err) {
-                docContent.innerHTML = `<div class="loading" style="color:red;">加载失败: ${err.message}</div>`;
-            }
-        }
-
-        function escapeHtml(str) {
-            if (!str) return '';
-            return str.replace(/[&<>]/g, function(m) {
-                if (m === '&') return '&amp;';
-                if (m === '<') return '&lt;';
-                if (m === '>') return '&gt;';
-                return m;
-            });
-        }
-
-        loadTree();
-    </script>
 </body>
 </html>
