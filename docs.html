@@ -162,6 +162,15 @@
             color: #0070f3;
             margin-bottom: 10px;
         }
+        .retry-btn {
+            margin-top: 20px;
+            padding: 8px 20px;
+            background: #0070f3;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+        }
         @media (max-width: 600px) {
             .sidebar {
                 width: 80%;
@@ -193,7 +202,7 @@
             <button class="close-sidebar" id="closeSidebarBtn">✕</button>
         </div>
         <div id="tree">
-            <div class="loading">加载目录中...</div>
+            <div class="loading">📂 加载目录中...</div>
         </div>
     </div>
 
@@ -205,6 +214,7 @@
         const menuBtn = document.getElementById('menuBtn');
         const closeSidebarBtn = document.getElementById('closeSidebarBtn');
         const docContent = document.getElementById('doc-content');
+        let loadTimeout = null;
 
         function openSidebar() {
             sidebar.classList.add('open');
@@ -241,8 +251,21 @@
 
         async function loadTree() {
             const treeDiv = document.getElementById('tree');
+            // 设置超时提示（5秒）
+            loadTimeout = setTimeout(() => {
+                if (treeDiv.innerHTML.includes('加载目录中')) {
+                    treeDiv.innerHTML = `
+                        <div class="loading">
+                            <p>加载超时，请检查网络</p>
+                            <button class="retry-btn" onclick="loadTree()">重试</button>
+                        </div>
+                    `;
+                }
+            }, 5000);
+
             try {
                 const res = await fetch('/api/docs/list');
+                clearTimeout(loadTimeout);
                 const data = await res.json();
                 if (data.success) {
                     currentTree = data.data;
@@ -270,16 +293,16 @@
                         });
                     });
                 } else {
-                    treeDiv.innerHTML = '<p style="color:red;">加载目录失败: ' + escapeHtml(data.error) + '</p>';
+                    treeDiv.innerHTML = `<div class="loading"><p>加载失败: ${escapeHtml(data.error)}</p><button class="retry-btn" onclick="loadTree()">重试</button></div>`;
                 }
             } catch (err) {
+                clearTimeout(loadTimeout);
                 console.error(err);
-                treeDiv.innerHTML = '<p style="color:red;">网络错误，请稍后重试</p>';
+                treeDiv.innerHTML = `<div class="loading"><p>网络错误，请稍后重试</p><button class="retry-btn" onclick="loadTree()">重试</button></div>`;
             }
         }
 
         async function loadDocument(path) {
-            // 显示加载中
             docContent.innerHTML = '<div class="loading">📖 加载文档中...</div>';
             try {
                 const res = await fetch(`/api/docs/content?path=${encodeURIComponent(path)}`);
@@ -295,7 +318,7 @@
             }
         }
 
-        // 初始化：加载目录树，不自动加载任何文档
+        // 初始化：加载目录树
         loadTree();
         
         function escapeHtml(str) {
