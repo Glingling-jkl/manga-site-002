@@ -24,6 +24,7 @@
             padding: 30px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.05);
             line-height: 1.6;
+            min-height: 60vh;
         }
         .doc-content h1 { font-size: 1.8rem; margin-top: 0; }
         .doc-content h2 { font-size: 1.4rem; margin-top: 1.5rem; }
@@ -152,6 +153,15 @@
             padding: 40px;
             color: #666;
         }
+        .welcome-message {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+        .welcome-message h2 {
+            color: #0070f3;
+            margin-bottom: 10px;
+        }
         @media (max-width: 600px) {
             .sidebar {
                 width: 80%;
@@ -169,7 +179,11 @@
     <div class="container">
         <button class="back-btn" onclick="location.href='index.html'">← 返回主页</button>
         <div id="doc-content" class="doc-content">
-            <div class="loading">加载文档中...</div>
+            <div class="welcome-message">
+                <h2>📚 文档中心</h2>
+                <p>请从右侧目录选择文档查看</p>
+                <p style="font-size: 0.8rem;">点击右下角 ☰ 按钮打开目录</p>
+            </div>
         </div>
     </div>
 
@@ -178,7 +192,9 @@
             <h3>📚 文档目录</h3>
             <button class="close-sidebar" id="closeSidebarBtn">✕</button>
         </div>
-        <div id="tree"></div>
+        <div id="tree">
+            <div class="loading">加载目录中...</div>
+        </div>
     </div>
 
     <div id="menuBtn" class="menu-btn">☰</div>
@@ -224,13 +240,15 @@
         }
 
         async function loadTree() {
+            const treeDiv = document.getElementById('tree');
             try {
                 const res = await fetch('/api/docs/list');
                 const data = await res.json();
                 if (data.success) {
                     currentTree = data.data;
                     const treeHtml = renderTree(currentTree);
-                    document.getElementById('tree').innerHTML = `<ul class="tree">${treeHtml}</ul>`;
+                    treeDiv.innerHTML = `<ul class="tree">${treeHtml}</ul>`;
+                    // 绑定文件夹折叠
                     document.querySelectorAll('.folder-label').forEach(label => {
                         label.addEventListener('click', (e) => {
                             e.stopPropagation();
@@ -241,6 +259,7 @@
                             }
                         });
                     });
+                    // 绑定文件点击事件
                     document.querySelectorAll('.file').forEach(fileItem => {
                         fileItem.addEventListener('click', async (e) => {
                             const path = fileItem.getAttribute('data-path');
@@ -251,16 +270,17 @@
                         });
                     });
                 } else {
-                    document.getElementById('tree').innerHTML = '<p>加载目录失败</p>';
+                    treeDiv.innerHTML = '<p style="color:red;">加载目录失败: ' + escapeHtml(data.error) + '</p>';
                 }
             } catch (err) {
                 console.error(err);
-                document.getElementById('tree').innerHTML = '<p>网络错误</p>';
+                treeDiv.innerHTML = '<p style="color:red;">网络错误，请稍后重试</p>';
             }
         }
 
         async function loadDocument(path) {
-            docContent.innerHTML = '<div class="loading">加载中...</div>';
+            // 显示加载中
+            docContent.innerHTML = '<div class="loading">📖 加载文档中...</div>';
             try {
                 const res = await fetch(`/api/docs/content?path=${encodeURIComponent(path)}`);
                 if (!res.ok) {
@@ -271,20 +291,13 @@
                 const cleanHtml = DOMPurify.sanitize(rawHtml);
                 docContent.innerHTML = cleanHtml;
             } catch (err) {
-                docContent.innerHTML = `<div class="loading" style="color:red;">加载失败: ${err.message}</div>`;
+                docContent.innerHTML = `<div class="loading" style="color:red;">❌ 加载失败: ${err.message}<br><br>请检查文件是否存在</div>`;
             }
         }
 
-        async function init() {
-            await loadTree();
-            // 默认加载“帮助/常见问题.md”，如果不存在则显示提示
-            loadDocument('帮助/常见问题.md').catch(() => {
-                docContent.innerHTML = '<div class="loading">请从右侧目录选择文档</div>';
-            });
-        }
-
-        init();
-
+        // 初始化：加载目录树，不自动加载任何文档
+        loadTree();
+        
         function escapeHtml(str) {
             if (!str) return '';
             return str.replace(/[&<>]/g, function(m) {
