@@ -2,7 +2,7 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>漫画站 · 主页</title>
     <link rel="stylesheet" href="style.css">
     <style>
@@ -108,15 +108,16 @@
             padding-top: 15px;
             border-top: 1px solid #eee;
         }
+        /* 漫画网格 - 强制两列 */
         .comic-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-            gap: 20px;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
             margin-top: 20px;
         }
         .comic-card {
             background: #fafafa;
-            border-radius: 16px;
+            border-radius: 12px;
             overflow: hidden;
             cursor: pointer;
             transition: transform 0.2s, box-shadow 0.2s;
@@ -124,29 +125,44 @@
             padding-bottom: 10px;
         }
         .comic-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
         }
         .comic-card img {
             width: 100%;
-            height: 200px;
+            height: auto;
+            aspect-ratio: 2 / 3;
             object-fit: cover;
         }
         .comic-card h3 {
-            font-size: 16px;
-            margin: 10px 0 5px;
+            font-size: 0.9rem;
+            margin: 8px 0 4px;
+            padding: 0 6px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .comic-card p {
+            font-size: 0.7rem;
+            color: #666;
+            margin: 0 0 4px;
         }
         .tags {
-            margin-top: 5px;
-            font-size: 0.8rem;
+            margin-top: 4px;
+            font-size: 0.7rem;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 4px;
+            padding: 0 4px;
         }
         .tags span {
             display: inline-block;
-            background: #f0f0f0;
+            background: #e0e0e0;
             color: #333;
             border-radius: 12px;
             padding: 2px 8px;
-            margin-right: 4px;
+            font-size: 0.65rem;
         }
 
         /* 菜单按钮样式 */
@@ -225,6 +241,23 @@
         .sub-menu li:hover {
             background: #f0f0f0;
         }
+
+        /* 响应式：非常小的屏幕调整间隙 */
+        @media (max-width: 480px) {
+            .comic-grid {
+                gap: 10px;
+            }
+            .comic-card h3 {
+                font-size: 0.8rem;
+            }
+            .comic-card p {
+                font-size: 0.65rem;
+            }
+            .tags span {
+                font-size: 0.6rem;
+                padding: 1px 6px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -264,6 +297,7 @@
             <li id="uploadMenuItem">📤 上传漫画</li>
             <li id="manageComicsMenuItem">📋 管理漫画</li>
             <li id="settingsMenuItem">⚙️ 小设置</li>
+            <li id="docsMenuItem">📚 文档中心</li>
         </ul>
     </div>
 
@@ -383,12 +417,18 @@
                 closeAllMenus();
             });
 
+            // 文档中心（新加）
+            document.getElementById('docsMenuItem').addEventListener('click', (e) => {
+                e.stopPropagation();
+                window.location.href = 'docs.html';
+                closeAllMenus();
+            });
+
             document.getElementById('settingsMenuItem').addEventListener('click', (e) => {
                 e.stopPropagation();
                 mainMenu.style.display = 'none';
                 const btnRect = menuBtn.getBoundingClientRect();
                 subMenu.style.bottom = (window.innerHeight - btnRect.top + 10) + 'px';
-                // 向左偏移150px，避免被屏幕遮挡
                 subMenu.style.right = (btnRect.left - 150) + 'px';
                 subMenu.style.display = 'block';
             });
@@ -546,13 +586,23 @@
                 html += `
                     <div class="comic-card" onclick="location.href='detail.html?id=${c.id}'">
                         <img src="/api/proxy?url=${encodeURIComponent(c.cover_url)}" alt="${c.title}" loading="lazy">
-                        <h3>${c.title}</h3>
-                        <p>${c.author} · ${c.chapters}话</p>
-                        <div class="tags">${c.tags.map(t => `<span>${t}</span>`).join('')}</div>
+                        <h3>${escapeHtml(c.title)}</h3>
+                        <p>${escapeHtml(c.author)} · ${c.chapters}话</p>
+                        <div class="tags">${c.tags.map(t => `<span>${escapeHtml(t)}</span>`).join('')}</div>
                     </div>
                 `;
             }
             listDiv.innerHTML = html;
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
         }
 
         window.filterComics = function() {
