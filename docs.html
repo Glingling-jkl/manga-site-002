@@ -18,14 +18,12 @@
             overflow-x: hidden;
         }
 
-        /* 主内容区 */
         .container {
             max-width: 1000px;
             margin: 0 auto;
             padding: 20px;
         }
 
-        /* 文档内容样式 */
         .doc-content {
             background: white;
             border-radius: 20px;
@@ -77,7 +75,6 @@
             overflow-x: auto;
         }
 
-        /* 侧边栏 - 优雅毛玻璃效果 */
         .sidebar {
             position: fixed;
             top: 0;
@@ -114,7 +111,6 @@
             margin: 0;
         }
 
-        /* 关闭按钮 - 左箭头 */
         .close-sidebar {
             background: none;
             border: none;
@@ -136,20 +132,17 @@
             color: #0f172a;
         }
 
-        /* 目录树容器 */
         #tree {
             position: relative;
             min-height: 200px;
         }
 
-        /* 文件夹项容器，用于动画 */
         .folder-item {
             margin-bottom: 8px;
             transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1), opacity 0.3s;
             will-change: transform, opacity;
         }
 
-        /* 文件夹标签 */
         .folder-label {
             display: flex;
             align-items: center;
@@ -171,7 +164,6 @@
             flex: 1;
         }
 
-        /* 箭头符号 */
         .folder-arrow {
             font-size: 1rem;
             color: #94a3b8;
@@ -182,11 +174,10 @@
         }
 
         .folder-arrow.rotated {
-            transform: rotate(90deg);
+            transform: rotate(-90deg);
             color: #64748b;
         }
 
-        /* 子内容容器 */
         .folder-children {
             overflow: hidden;
             transition: max-height 0.4s cubic-bezier(0.33, 1, 0.68, 1);
@@ -195,10 +186,9 @@
         }
 
         .folder-children.open {
-            max-height: 800px; /* 足够大以容纳子内容 */
+            max-height: 800px;
         }
 
-        /* 文件项 */
         .file-item {
             padding: 10px 12px 10px 32px;
             cursor: pointer;
@@ -213,7 +203,6 @@
             color: #0f172a;
         }
 
-        /* 菜单按钮 */
         .menu-btn {
             position: fixed;
             bottom: 24px;
@@ -258,7 +247,6 @@
             display: none;
         }
 
-        /* 加载状态 */
         .loading {
             text-align: center;
             padding: 40px;
@@ -330,10 +318,10 @@
 
         // 状态
         let currentTree = null;
-        let openFolderId = null;          // 当前打开的文件夹ID
-        let animating = false;             // 动画进行中
-        let originalFolderOrder = [];      // 保存原始文件夹顺序（用于恢复）
-        let movedOutFolders = [];           // 记录已移出的文件夹元素（用于恢复）
+        let openFolderId = null;
+        let animating = false;
+        let originalFolderOrder = [];
+        let movedOutFolders = [];
 
         // ---------- 辅助函数 ----------
         function updateMenuButton() {
@@ -364,7 +352,7 @@
             }
         });
 
-        // 递归构建树形结构（无图标，仅文字，但生成后需手动绑定事件）
+        // 递归构建树形结构（不包含顶层 docs，直接渲染 children）
         function buildTreeHTML(node) {
             if (!node) return '';
             if (node.type === 'file') {
@@ -377,7 +365,7 @@
                 return `<div class="folder-item" data-folder-id="${folderId}">
                             <div class="folder-label" data-folder="${node.name}" data-id="${folderId}">
                                 <span class="folder-name">${escapeHtml(node.name)}</span>
-                                <span class="folder-arrow">›</span>
+                                <span class="folder-arrow">&lt;</span>
                             </div>
                             <div class="folder-children" id="${folderId}-children">
                                 ${node.children ? node.children.map(child => buildTreeHTML(child)).join('') : ''}
@@ -387,30 +375,27 @@
             return '';
         }
 
-        // 记录原始顺序（在渲染后调用）
+        // 记录原始顺序
         function recordOriginalOrder() {
             const folders = Array.from(treeContainer.querySelectorAll('.folder-item'));
             originalFolderOrder = folders.map(f => f);
         }
 
-        // 恢复所有文件夹到原始位置（清除所有 transform 和 display 样式）
+        // 恢复所有文件夹
         function restoreFolders() {
             if (animating) return;
-            // 清除所有移出文件夹的样式
             movedOutFolders.forEach(folder => {
                 folder.style.transform = '';
                 folder.style.opacity = '';
                 folder.style.display = '';
             });
             movedOutFolders = [];
-            // 确保所有文件夹可见
             const allFolders = Array.from(treeContainer.querySelectorAll('.folder-item'));
             allFolders.forEach(folder => {
                 folder.style.transform = '';
                 folder.style.opacity = '';
                 folder.style.display = '';
             });
-            // 恢复 DOM 顺序（如果顺序被打乱）
             if (originalFolderOrder.length) {
                 originalFolderOrder.forEach((folder, idx) => {
                     if (treeContainer.children[idx] !== folder) {
@@ -430,30 +415,24 @@
                     return;
                 }
 
-                // 记录需要移出的文件夹（排除当前点击的）
                 const toMoveOut = allFolders.filter((_, idx) => idx !== clickedIndex);
                 movedOutFolders = toMoveOut;
 
-                // 设置过渡
                 toMoveOut.forEach((folder, idx) => {
                     folder.style.transition = 'transform 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1), opacity 0.3s';
                     if (idx < clickedIndex) {
-                        // 上面的向上移出
                         folder.style.transform = 'translateY(-100%)';
                     } else {
-                        // 下面的向下移出
                         folder.style.transform = 'translateY(100%)';
                     }
                     folder.style.opacity = '0';
                 });
 
-                // 等待动画结束
                 let finishedCount = 0;
                 const onTransitionEnd = (e) => {
                     if (e.target === e.currentTarget && e.propertyName === 'transform') {
                         finishedCount++;
                         if (finishedCount === toMoveOut.length) {
-                            // 动画完成，隐藏这些元素（不占位）
                             toMoveOut.forEach(f => {
                                 f.style.display = 'none';
                             });
@@ -464,7 +443,6 @@
                 toMoveOut.forEach(f => {
                     f.addEventListener('transitionend', onTransitionEnd);
                 });
-                // 超时保护
                 setTimeout(() => {
                     if (finishedCount < toMoveOut.length) {
                         toMoveOut.forEach(f => {
@@ -479,16 +457,14 @@
 
         // 将当前文件夹移动到顶部
         function moveToTop(clickedFolder) {
-            // 获取当前文件夹在父容器中的位置
             const parent = treeContainer;
             const firstChild = parent.firstChild;
             if (firstChild !== clickedFolder) {
                 parent.insertBefore(clickedFolder, firstChild);
             }
-            // 确保其他隐藏的文件夹顺序不变（但它们已隐藏）
         }
 
-        // 展开子内容（从底部伸出效果）
+        // 展开子内容
         function expandFolder(clickedFolder) {
             const folderId = clickedFolder.getAttribute('data-folder-id');
             const childrenDiv = document.getElementById(`${folderId}-children`);
@@ -511,15 +487,12 @@
             }
         }
 
-        // 重置所有文件夹的可见性和位置（关闭动画）
+        // 重置所有文件夹
         async function resetAllFolders() {
             if (animating) return;
             animating = true;
-            // 先关闭当前打开的文件夹
             collapseFolder();
-            // 恢复所有隐藏的文件夹
             restoreFolders();
-            // 等待一帧让样式生效
             await new Promise(r => requestAnimationFrame(r));
             animating = false;
         }
@@ -530,10 +503,7 @@
             const label = e.currentTarget;
             const folderId = label.getAttribute('data-id');
             const folderItem = label.closest('.folder-item');
-            const childrenDiv = document.getElementById(`${folderId}-children`);
-            const arrow = label.querySelector('.folder-arrow');
 
-            // 如果点击的是已打开的文件夹，则关闭它
             if (openFolderId === folderId) {
                 animating = true;
                 await resetAllFolders();
@@ -541,10 +511,8 @@
                 return;
             }
 
-            // 否则，执行新动画：移出其他，当前上移，展开子内容
             animating = true;
 
-            // 1. 关闭当前可能打开的文件夹（但不移出）
             if (openFolderId) {
                 const oldChildren = document.getElementById(`${openFolderId}-children`);
                 const oldArrow = document.querySelector(`.folder-label[data-id="${openFolderId}"] .folder-arrow`);
@@ -553,20 +521,14 @@
                 openFolderId = null;
             }
 
-            // 2. 移出其他文件夹
             await animateMoveOut(folderItem);
-
-            // 3. 将当前文件夹移到顶部
             moveToTop(folderItem);
-
-            // 4. 展开当前文件夹的子内容
             expandFolder(folderItem);
 
-            // 动画完成
             animating = false;
         }
 
-        // 绑定文件夹点击事件
+        // 绑定事件
         function bindFolderEvents() {
             document.querySelectorAll('.folder-label').forEach(label => {
                 label.removeEventListener('click', handleFolderClick);
@@ -574,7 +536,6 @@
             });
         }
 
-        // 绑定文件点击事件
         function bindFileEvents() {
             document.querySelectorAll('.file-item').forEach(fileItem => {
                 fileItem.addEventListener('click', async (e) => {
@@ -587,7 +548,6 @@
             });
         }
 
-        // 加载文档内容
         async function loadDocument(path) {
             docContent.innerHTML = '<div class="loading">加载文档...</div>';
             try {
@@ -602,30 +562,31 @@
             }
         }
 
-        // 加载目录树
         async function loadTree() {
-            const treeDiv = treeContainer;
-            treeDiv.innerHTML = '<div class="loading">加载中...</div>';
+            treeContainer.innerHTML = '<div class="loading">加载中...</div>';
             try {
                 const res = await fetch('/api/docs/list');
                 const data = await res.json();
                 if (data.success) {
                     currentTree = data.data;
-                    const treeHtml = buildTreeHTML(currentTree);
-                    treeDiv.innerHTML = treeHtml;
-                    recordOriginalOrder();        // 记录原始顺序
-                    bindFolderEvents();            // 绑定文件夹事件
-                    bindFileEvents();              // 绑定文件事件
+                    const children = currentTree.children || [];
+                    let treeHtml = '';
+                    for (const child of children) {
+                        treeHtml += buildTreeHTML(child);
+                    }
+                    treeContainer.innerHTML = treeHtml;
+                    recordOriginalOrder();
+                    bindFolderEvents();
+                    bindFileEvents();
                 } else {
-                    treeDiv.innerHTML = `<div class="loading"><p>加载失败</p><button class="retry-btn" onclick="location.reload()">重试</button></div>`;
+                    treeContainer.innerHTML = `<div class="loading"><p>加载失败</p><button class="retry-btn" onclick="location.reload()">重试</button></div>`;
                 }
             } catch (err) {
                 console.error(err);
-                treeDiv.innerHTML = `<div class="loading"><p>网络错误</p><button class="retry-btn" onclick="location.reload()">重试</button></div>`;
+                treeContainer.innerHTML = `<div class="loading"><p>网络错误</p><button class="retry-btn" onclick="location.reload()">重试</button></div>`;
             }
         }
 
-        // 转义HTML
         function escapeHtml(str) {
             if (!str) return '';
             return str.replace(/[&<>]/g, function(m) {
@@ -636,7 +597,6 @@
             });
         }
 
-        // 初始化
         loadTree();
     </script>
 </body>
