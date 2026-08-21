@@ -281,6 +281,17 @@ a.btn {
     100% { background-position: 400px 0; }
 }
 
+/* 页面级过渡动画：镜头拉近入场（登录进入主页、打开详情页等） */
+@keyframes pageZoomIn {
+    from { opacity: 0.35; transform: scale(0.94) translateY(12px); }
+    to   { opacity: 1; transform: none; }
+}
+
+/* 现代浏览器（Chromium 126+）站内导航自动平滑过渡（渐进增强，不影响其他浏览器） */
+@view-transition {
+    navigation: auto;
+}
+
 /* ---------- 骨架屏 ---------- */
 .skeleton {
     position: relative;

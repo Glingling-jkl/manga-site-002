@@ -109,6 +109,11 @@
             align-items: center;
         }
 
+        #main-content.zoom-enter .site-header,
+        #main-content.zoom-enter .container {
+            animation: pageZoomIn 0.6s var(--ease-out) both;
+        }
+
         /* ================= 顶部导航 ================= */
         .site-header {
             width: 100%;
@@ -168,40 +173,14 @@
             border-radius: var(--radius-pill);
         }
 
-        /* ================= Hero 区 ================= */
-        .hero {
-            text-align: center;
-            padding: 30px 14px 10px;
-            animation: fadeUp 0.7s 0.05s var(--ease-out) both;
-        }
-        .hero-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.8rem;
-            font-weight: 700;
-            color: #b84a6a;
-            background: var(--pink-light);
-            padding: 6px 16px;
-            border-radius: var(--radius-pill);
-        }
-        .hero-title {
-            font-size: 2.15rem;
-            font-weight: 800;
-            margin: 16px 0 10px;
-            letter-spacing: 0.02em;
-            line-height: 1.25;
-        }
-        .hero-sub {
-            color: var(--ink-soft);
-            font-size: 1.02rem;
-            margin-bottom: 24px;
-        }
+        /* ================= 快捷操作区 ================= */
         .hero-actions {
             display: flex;
             gap: 14px;
             justify-content: center;
             flex-wrap: wrap;
+            margin-top: 18px;
+            animation: fadeUp 0.6s 0.05s var(--ease-out) both;
         }
 
         /* ================= 用户区 ================= */
@@ -280,6 +259,9 @@
         .comic-card:hover {
             transform: translateY(-6px);
             box-shadow: var(--shadow-lg);
+        }
+        .comic-card:active {
+            transform: scale(0.97);
         }
         .comic-card .thumb {
             aspect-ratio: 2 / 3;
@@ -414,7 +396,6 @@
 
         /* ================= 响应式 ================= */
         @media (max-width: 600px) {
-            .hero-title { font-size: 1.6rem; }
             .site-header { padding: 12px 16px; }
             .brand-name-text { font-size: 1.1rem; }
             .nav-link { padding: 6px 10px; font-size: 0.82rem; }
@@ -456,16 +437,11 @@
         </header>
 
         <div class="container">
-            <!-- Hero -->
-            <section class="hero">
-                <span class="hero-badge">✨ 全新界面 · 流畅体验</span>
-                <h1 class="hero-title">发现你的<span class="text-gradient">下一本漫画</span></h1>
-                <p class="hero-sub">在线观看 · 本地导入 · 评论互动 · 追更不断</p>
-                <div class="hero-actions">
-                    <a href="reader.html" class="btn btn-shine">📦 导入本地漫画</a>
-                    <a href="#comic-list-area" class="btn btn-ghost" id="browseBtn">📚 浏览在线漫画</a>
-                </div>
-            </section>
+            <!-- 快捷操作 -->
+            <div class="hero-actions">
+                <a href="reader.html" class="btn btn-shine">📦 导入本地漫画</a>
+                <a href="#comic-list-area" class="btn btn-ghost" id="browseBtn">📚 浏览在线漫画</a>
+            </div>
 
             <!-- 用户区 -->
             <div id="user-area"></div>
@@ -518,6 +494,13 @@
         let splashPlayed = false;
         try { splashPlayed = sessionStorage.getItem('splashPlayed') === 'true'; } catch (e) { splashPlayed = false; }
 
+        // 从登录页跳转而来时，主页以“镜头拉近”的方式入场
+        let fromLogin = false;
+        try {
+            fromLogin = sessionStorage.getItem('fromLogin') === '1';
+            if (fromLogin) sessionStorage.removeItem('fromLogin');
+        } catch (e) { fromLogin = false; }
+
         function showMainContent() {
             const splash = document.getElementById('splash');
             const main = document.getElementById('main-content');
@@ -525,6 +508,7 @@
             if (main) {
                 main.style.display = 'flex';
                 main.style.opacity = '1';
+                if (fromLogin) main.classList.add('zoom-enter');
             }
         }
 
@@ -668,10 +652,29 @@
 
             document.getElementById('settingsMenuItem').addEventListener('click', (e) => {
                 e.stopPropagation();
+                // 先读取主菜单宽度（置为隐藏后 offsetWidth 会变成 0）
+                const mainMenuWidth = mainMenu.offsetWidth;
                 mainMenu.style.display = 'none';
                 const btnRect = menuBtn.getBoundingClientRect();
-                subMenu.style.bottom = (window.innerHeight - btnRect.top + 10) + 'px';
-                subMenu.style.right = (btnRect.left - 150) + 'px';
+                const mainBottom = (window.innerHeight - btnRect.top + 10);
+                const mainRight = (window.innerWidth - btnRect.right);
+                const gap = 8;
+
+                // 临时显示以测量子菜单真实宽度（不可见，不会闪烁）
+                subMenu.style.visibility = 'hidden';
+                subMenu.style.display = 'block';
+                const subMenuWidth = subMenu.offsetWidth || 150;
+                subMenu.style.display = 'none';
+                subMenu.style.visibility = 'visible';
+
+                // 子菜单默认贴主菜单左侧弹出（底部对齐）
+                let subRight = mainRight + mainMenuWidth + gap;
+                // 左侧空间不足时，改为贴主菜单右侧弹出，避免溢出屏幕
+                if (subRight + subMenuWidth > window.innerWidth) {
+                    subRight = Math.max(mainRight - subMenuWidth - gap, 10);
+                }
+                subMenu.style.bottom = mainBottom + 'px';
+                subMenu.style.right = subRight + 'px';
                 subMenu.style.display = 'block';
             });
 

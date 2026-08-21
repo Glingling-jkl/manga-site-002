@@ -76,6 +76,23 @@
             transition: color 0.2s ease, transform 0.2s ease;
         }
         .back-home:hover { color: var(--primary); transform: translateX(-3px); }
+        /* 登录界面整体垂直水平居中 */
+        body {
+            align-items: center;
+        }
+        /* 登录成功过渡：登录窗口放大淡出（配合主页“镜头拉近”入场） */
+        .login-box {
+            transition: transform 0.5s var(--ease-spring), opacity 0.45s ease, filter 0.5s ease;
+        }
+        .login-box.leaving {
+            animation: none;
+            transform: scale(1.35);
+            opacity: 0;
+            filter: blur(6px);
+        }
+        @media (max-height: 560px) {
+            body { align-items: flex-start; }
+        }
         @media (prefers-reduced-motion: reduce) {
             .lock-icon { animation: none; }
         }
@@ -122,6 +139,18 @@
     <script>
         let pendingUsername = '';
         let pendingPassword = '';
+
+        // 登录成功后的精细过渡：登录窗口放大淡出，主页以“镜头拉近”入场
+        function goHomeAfterLogin() {
+            try { sessionStorage.setItem('fromLogin', '1'); } catch (e) {}
+            const box = document.querySelector('.login-box');
+            if (box) {
+                box.classList.add('leaving');
+                setTimeout(function () { window.location.href = 'index.html'; }, 500);
+            } else {
+                window.location.href = 'index.html';
+            }
+        }
 
         // 从详情页等被引导过来登录时的提示
         (function () {
@@ -183,7 +212,7 @@
                     localStorage.setItem('currentUser', data.username);
                     localStorage.setItem('userRole', data.role);
                     localStorage.setItem('currentUserId', data.userId);
-                    window.location.href = 'index.html';
+                    goHomeAfterLogin();
                 } else if (data.needSetSecondFactor) {
                     pendingUsername = data.username;
                     pendingPassword = password;
@@ -235,7 +264,7 @@
                     localStorage.setItem('currentUser', data.username);
                     localStorage.setItem('userRole', data.role);
                     localStorage.setItem('currentUserId', data.userId);
-                    window.location.href = 'index.html';
+                    goHomeAfterLogin();
                 } else {
                     msg.innerText = data.error || '验证失败';
                 }
