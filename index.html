@@ -253,7 +253,7 @@
             padding-bottom: 14px;
             border: 1px solid rgba(0, 0, 0, 0.05);
             box-shadow: var(--shadow-sm);
-            animation: cardIn 0.5s var(--ease-out) both;
+            animation: cardIn 0.5s var(--ease-out) backwards;
             transition: transform 0.25s var(--ease-spring), box-shadow 0.3s ease;
         }
         .comic-card:hover {
@@ -345,7 +345,7 @@
             cursor: pointer;
             z-index: 1000;
             transition: transform 0.22s var(--ease-spring), box-shadow 0.25s ease;
-            animation: fabIn 0.4s var(--ease-spring) both;
+            animation: fabIn 0.4s var(--ease-spring) backwards;
         }
         .menu-btn:hover {
             transform: scale(1.1) rotate(90deg);
