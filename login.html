@@ -7,6 +7,9 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- 无 JS 环境提示 -->
+    <noscript><div style="position:fixed;top:0;left:0;right:0;background:#ff6b6b;color:#fff;padding:10px;text-align:center;z-index:99999;">本站功能需要启用 JavaScript 才能正常使用</div></noscript>
+
     <div class="login-box">
         <h2>🔐 登录漫画站</h2>
         
@@ -41,6 +44,41 @@
         let pendingUsername = '';
         let pendingPassword = '';
 
+        // 从详情页等被引导过来登录时的提示
+        (function () {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('needlogin')) {
+                const msg = document.getElementById('message');
+                if (msg) {
+                    msg.style.color = '#e67e22';
+                    msg.innerText = '请先登录后再访问该页面';
+                }
+            }
+        })();
+
+        // Enter 键提交（与点击按钮等效）
+        document.addEventListener('keydown', function (e) {
+            if (e.key !== 'Enter') return;
+            const active = document.activeElement;
+            if (!active) return;
+            if (document.getElementById('loginForm').style.display !== 'none' &&
+                (active.id === 'username' || active.id === 'password')) {
+                submitLogin();
+            } else if (document.getElementById('secondFactorForm').style.display !== 'none' &&
+                active.id === 'secondFactor') {
+                submitSecondFactor();
+            } else if (document.getElementById('setSecondFactorForm').style.display !== 'none' &&
+                active.id === 'newSecondFactor') {
+                submitSetSecondFactor();
+            }
+        });
+
+        function disableButtons(disabled) {
+            document.querySelectorAll('#loginForm button, #secondFactorForm button, #setSecondFactorForm button').forEach(function (btn) {
+                btn.disabled = disabled;
+            });
+        }
+
         async function submitLogin() {
             const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
@@ -51,6 +89,8 @@
                 return;
             }
 
+            disableButtons(true);
+            msg.innerText = '登录中...';
             try {
                 const res = await fetch('/api/login', {
                     method: 'POST',
@@ -83,6 +123,8 @@
                 }
             } catch (err) {
                 msg.innerText = '网络错误，请稍后重试';
+            } finally {
+                disableButtons(false);
             }
         }
 
@@ -95,6 +137,8 @@
                 return;
             }
 
+            disableButtons(true);
+            msg.innerText = '验证中...';
             try {
                 const res = await fetch('/api/login', {
                     method: 'POST',
@@ -118,6 +162,8 @@
                 }
             } catch (err) {
                 msg.innerText = '网络错误，请稍后重试';
+            } finally {
+                disableButtons(false);
             }
         }
 
@@ -137,6 +183,8 @@
                 return;
             }
 
+            disableButtons(true);
+            msg.innerText = '设置中...';
             try {
                 const res = await fetch('/api/set-second-factor', {
                     method: 'POST',
@@ -163,6 +211,8 @@
                 }
             } catch (err) {
                 msg.innerText = '网络错误，请稍后重试';
+            } finally {
+                disableButtons(false);
             }
         }
     </script>

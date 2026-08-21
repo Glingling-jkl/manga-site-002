@@ -58,6 +58,13 @@
 
         const UPLOAD_TOKEN = 'manga-upload-secret-2025';
 
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str).replace(/[&<>]/g, function (m) {
+                return m === '&' ? '&amp;' : (m === '<' ? '&lt;' : '&gt;');
+            });
+        }
+
         async function loadComics() {
             try {
                 const res = await fetch('/api/comics', {
@@ -73,7 +80,7 @@
                     document.getElementById('comic-list').innerHTML = '<p>加载失败</p>';
                 }
             } catch (err) {
-                document.getElementById('comic-list').innerHTML = `<p>网络错误: ${err.message}</p>`;
+                document.getElementById('comic-list').innerHTML = `<p>网络错误: ${escapeHtml(err.message)}</p>`;
             }
         }
 
@@ -93,10 +100,10 @@
                 }
                 html += `
                     <div class="comic-manage-item" data-id="${c.id}">
-                        <img src="/api/proxy?url=${encodeURIComponent(c.cover_url)}" alt="${c.title}">
+                        <img src="/api/proxy?url=${encodeURIComponent(c.cover_url || '')}" alt="${escapeHtml(c.title || '')}" loading="lazy" onerror="this.style.visibility='hidden'">
                         <div class="comic-info">
-                            <strong>${c.title}</strong> (${c.author})<br>
-                            上传者: ${c.uploader} | 所有者: ${c.owner_role}
+                            <strong>${escapeHtml(c.title || '')}</strong> (${escapeHtml(c.author || '')})<br>
+                            上传者: ${escapeHtml(c.uploader || '')} | 所有者: ${escapeHtml(c.owner_role || '')}
                         </div>
                         ${actionButton}
                     </div>
@@ -122,10 +129,10 @@
                     resultDiv.innerHTML = '<p style="color:green;">删除成功</p>';
                     loadComics();
                 } else {
-                    resultDiv.innerHTML = `<p style="color:red;">删除失败: ${data.error}</p>`;
+                    resultDiv.innerHTML = `<p style="color:red;">删除失败: ${escapeHtml(data.error || '未知错误')}</p>`;
                 }
             } catch (err) {
-                resultDiv.innerHTML = `<p style="color:red;">网络错误: ${err.message}</p>`;
+                resultDiv.innerHTML = `<p style="color:red;">网络错误: ${escapeHtml(err.message)}</p>`;
             }
         }
 

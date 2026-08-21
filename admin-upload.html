@@ -128,7 +128,20 @@
             margin-left: 4px;
         }
     </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script>
+        // JSZip 多 CDN 回退加载：单一 CDN 不可用时自动切换备用源
+        (function () {
+            var srcs = [
+                'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
+                'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js',
+                'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js'
+            ];
+            for (var i = 0; i < srcs.length; i++) {
+                document.write('<script src="' + srcs[i] + '"><\/script>');
+                if (typeof JSZip !== 'undefined') break;
+            }
+        })();
+    </script>
 </head>
 <body>
     <div class="container">
@@ -226,13 +239,22 @@
         }
         document.getElementById('uploaderDisplay').value = `${currentUser} (${userRole})`;
 
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str).replace(/[&<>]/g, function (m) {
+                return m === '&' ? '&amp;' : (m === '<' ? '&lt;' : '&gt;');
+            });
+        }
+
         const UPLOAD_TOKEN = 'manga-upload-secret-2025';
         let selectedZipFile = null;
         let imageFiles = [];
         let totalPages = 0;
         let parts = [];
         let comicId = null;
+        let comicCreated = false; // 是否已在服务器创建漫画记录（用于失败后续传，避免重复记录）
         let coverFile = null;
+        let previewUrls = []; // 预览生成的 Blob URL，重置时统一释放
 
         // DOM 元素
         const zipInput = document.getElementById('zipInput');
@@ -259,6 +281,10 @@
 
         // 1. ZIP 文件处理
         function handleZipFile(file) {
+            if (typeof JSZip === 'undefined') {
+                alert('解压库加载失败，请检查网络后刷新页面重试');
+                return;
+            }
             resetUI();
             selectedZipFile = file;
             zipFileNameSpan.textContent = `文件名: ${file.name}`;
@@ -286,9 +312,11 @@
                     const entry = allFiles[i];
                     const blob = await entry.zipEntry.async('blob');
                     const url = URL.createObjectURL(blob);
+                    previewUrls.push(url);
                     const div = document.createElement('div');
                     div.className = 'preview-item';
-                    div.innerHTML = `<img src="${url}"><div class="filename">${entry.path.split('/').pop()}</div>`;
+                    // 文件名做转义，防止压缩包内包含特殊字符的文件名注入 HTML
+                    div.innerHTML = `<img src="${url}"><div class="filename">${escapeHtml(entry.path.split('/').pop())}</div>`;
                     previewGrid.appendChild(div);
                 }
                 if (totalPages > previewLimit) {
@@ -300,15 +328,8 @@
                 totalImagesCountSpan.textContent = `共 ${totalPages} 张图片`;
                 previewArea.style.display = 'block';
                 
-                // 存储图片 Blob
-                imageFiles = [];
-                for (let i = 0; i < allFiles.length; i++) {
-                    const blob = await allFiles[i].zipEntry.async('blob');
-                    imageFiles.push({ name: allFiles[i].path.split('/').pop(), blob });
-                    if ((i + 1) % 100 === 0) {
-                        resultDiv.innerHTML = `<p>正在加载图片... ${i+1}/${totalPages}</p>`;
-                    }
-                }
+                // 不再提前把所有图片解压进内存：保留压缩包条目引用，分片打包时按需读取
+                imageFiles = allFiles.map(f => ({ name: f.path.split('/').pop(), entry: f.zipEntry }));
                 resultDiv.innerHTML = '<p>✅ ZIP 解压完成，请上传封面并填写信息</p>';
                 coverArea.style.display = 'block';
                 comicForm.style.display = 'block';
@@ -397,7 +418,11 @@
             totalPages = 0;
             parts = [];
             comicId = null;
+            comicCreated = false;
             coverFile = null;
+            // 释放预览用 Blob URL，避免内存泄漏
+            previewUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (e) {} });
+            previewUrls = [];
             coverInput.value = '';
             coverPreviewImgDiv.style.display = 'none';
             coverImg.src = '';
@@ -412,7 +437,7 @@
             zipInput.value = '';
         }
 
-        // 3. 分片打包
+        // 3. 分片打包（按需从压缩包条目读取，避免同时持有全部图片 Blob）
         async function createParts() {
             const PART_SIZE = 10;
             const partCount = Math.ceil(totalPages / PART_SIZE);
@@ -425,7 +450,7 @@
                 for (let j = 0; j < slice.length; j++) {
                     const img = slice[j];
                     const filename = `${String(start + j + 1).padStart(3, '0')}_${img.name}`;
-                    zip.file(filename, img.blob);
+                    zip.file(filename, img.entry.async('blob'));
                 }
                 const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
                 newParts.push({ index: i + 1, blob, size: blob.size });
@@ -479,7 +504,7 @@
                     if (xhr.status === 200) {
                         try {
                             const data = JSON.parse(xhr.responseText);
-                            data.success ? resolve(data) : reject(new Error(data.error));
+                            data.success ? resolve(data) : reject(new Error(data.error || '分片上传失败'));
                         } catch { reject(new Error('解析响应失败')); }
                     } else reject(new Error(`HTTP ${xhr.status}`));
                 };
@@ -503,62 +528,141 @@
         }
 
         // 7. 主上传流程
+        let isUploading = false;
+        let nextPartToUpload = 0; // 下一个待上传分片的下标（失败后可从此继续）
+
+        function buildPartListUI() {
+            uploadProgressDiv.style.display = 'block';
+            partsListDiv.innerHTML = '';
+            for (let i = 0; i < parts.length; i++) {
+                const div = document.createElement('div');
+                div.id = `part-${i+1}`;
+                div.className = 'file-item';
+                div.innerHTML = `
+                    <div class="file-name">分片 ${i+1} (${(parts[i].size / 1024 / 1024).toFixed(2)} MB)</div>
+                    <div class="file-status status-pending" id="status-${i+1}">等待上传</div>
+                    <div class="progress-bar" id="progress-${i+1}">
+                        <div class="progress-fill" id="progress-fill-${i+1}"></div>
+                    </div>
+                `;
+                partsListDiv.appendChild(div);
+            }
+        }
+
+        // 带重试的单分片上传（网络抖动自动重试，最多 2 次额外尝试）
+        async function uploadPartWithRetry(comicId, part, maxRetries) {
+            let lastError = null;
+            for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                if (attempt > 0) {
+                    await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+                }
+                try {
+                    await uploadPart(comicId, part.index, part.blob, `part_${part.index}.zip`, (pct) => {
+                        const fill = document.getElementById(`progress-fill-${part.index}`);
+                        if (fill) fill.style.width = pct + '%';
+                    });
+                    return;
+                } catch (err) {
+                    lastError = err;
+                    console.warn(`分片 ${part.index} 第 ${attempt + 1} 次上传失败:`, err.message);
+                }
+            }
+            throw lastError || new Error('未知错误');
+        }
+
         uploadBtn.addEventListener('click', async () => {
-            if (!selectedZipFile || !coverFile) return;
+            if (!selectedZipFile || !coverFile || isUploading) return;
+            // 若服务器已创建过记录（上次中断），直接续传，避免生成重复漫画
+            if (comicCreated && parts.length > 0) {
+                if (nextPartToUpload >= parts.length) {
+                    alert('本漫画已上传完成，如需上传新漫画请先点击“清除”');
+                    return;
+                }
+                window.resumeUpload();
+                return;
+            }
+            isUploading = true;
             uploadBtn.disabled = true;
             resultDiv.innerHTML = '<p>正在生成分片... 请稍候</p>';
             try {
                 parts = await createParts();
                 if (parts.length === 0) throw new Error('没有生成任何分片');
                 resultDiv.innerHTML = `<p>已生成 ${parts.length} 个分片，开始上传到服务器...</p>`;
-                
-                uploadProgressDiv.style.display = 'block';
-                partsListDiv.innerHTML = '';
-                for (let i = 0; i < parts.length; i++) {
-                    const div = document.createElement('div');
-                    div.id = `part-${i+1}`;
-                    div.className = 'file-item';
-                    div.innerHTML = `
-                        <div class="file-name">分片 ${i+1} (${(parts[i].size / 1024 / 1024).toFixed(2)} MB)</div>
-                        <div class="file-status status-pending" id="status-${i+1}">等待上传</div>
-                        <div class="progress-bar" id="progress-${i+1}">
-                            <div class="progress-fill" id="progress-fill-${i+1}"></div>
-                        </div>
-                    `;
-                    partsListDiv.appendChild(div);
-                }
-                
+
+                buildPartListUI();
                 comicId = await uploadMetadata();
+                comicCreated = true;
                 resultDiv.innerHTML = `漫画记录已创建 (ID: ${comicId})，开始上传分片...`;
-                
-                for (let i = 0; i < parts.length; i++) {
-                    const part = parts[i];
-                    const statusSpan = document.getElementById(`status-${part.index}`);
-                    const progressFill = document.getElementById(`progress-fill-${part.index}`);
-                    const progressBar = document.getElementById(`progress-${part.index}`);
-                    
+
+                await uploadRemainingParts();
+            } catch (err) {
+                if (comicCreated && parts.length > 0) {
+                    // 服务器已有记录，提供“继续上传”，避免中断后生成重复漫画
+                    resultDiv.innerHTML = `<div style="color:red;">❌ 上传中断: ${escapeHtml(err.message)}<br><button onclick="window.resumeUpload()" style="width:auto; margin-top:10px;">继续上传</button></div>`;
+                } else {
+                    resultDiv.innerHTML = `<div style="color:red;">❌ 上传失败: ${escapeHtml(err.message)}</div>`;
+                }
+                uploadBtn.disabled = false;
+            } finally {
+                isUploading = false;
+            }
+        });
+
+        // 失败后可点击“继续上传”续传剩余分片（漫画记录已存在，不再重复创建）
+        window.resumeUpload = async function () {
+            if (isUploading) return;
+            if (!comicCreated || parts.length === 0) {
+                alert('没有可续传的上传任务');
+                return;
+            }
+            isUploading = true;
+            uploadBtn.disabled = true;
+            resultDiv.innerHTML = '继续上传中...';
+            try {
+                await uploadRemainingParts();
+            } catch (err) {
+                resultDiv.innerHTML = `<div style="color:red;">❌ 上传失败: ${escapeHtml(err.message)}<br><button onclick="window.resumeUpload()" style="width:auto; margin-top:10px;">继续上传</button></div>`;
+            } finally {
+                isUploading = false;
+                uploadBtn.disabled = false;
+            }
+        };
+
+        async function uploadRemainingParts() {
+            while (nextPartToUpload < parts.length) {
+                const part = parts[nextPartToUpload];
+                const statusSpan = document.getElementById(`status-${part.index}`);
+                const progressBar = document.getElementById(`progress-${part.index}`);
+                if (statusSpan) {
                     statusSpan.innerText = '上传中';
                     statusSpan.className = 'file-status status-uploading';
-                    progressBar.style.display = 'block';
-                    
-                    await uploadPart(comicId, part.index, part.blob, `part_${part.index}.zip`, (pct) => {
-                        progressFill.style.width = pct + '%';
-                    });
-                    progressFill.style.width = '100%';
+                }
+                if (progressBar) progressBar.style.display = 'block';
+
+                await uploadPartWithRetry(comicId, part, 2);
+                const fill = document.getElementById(`progress-fill-${part.index}`);
+                if (fill) fill.style.width = '100%';
+                if (statusSpan) {
                     statusSpan.innerText = '成功';
                     statusSpan.className = 'file-status status-success';
                 }
-                
-                await finishUpload(comicId);
-                resultDiv.innerHTML = `
-                    <div style="color:green; background:#e8f5e8; padding:15px; border-radius:8px;">
-                        ✅ 所有分片上传成功！<br>
-                        <a href="detail.html?id=${comicId}">查看漫画</a>
-                    </div>
-                `;
-            } catch (err) {
-                resultDiv.innerHTML = `<div style="color:red;">❌ 上传失败: ${err.message}</div>`;
-                uploadBtn.disabled = false;
+                nextPartToUpload++;
+            }
+
+            await finishUpload(comicId);
+            resultDiv.innerHTML = `
+                <div style="color:green; background:#e8f5e8; padding:15px; border-radius:8px;">
+                    ✅ 所有分片上传成功！<br>
+                    <a href="detail.html?id=${comicId}">查看漫画</a>
+                </div>
+            `;
+        }
+
+        // 上传过程中离开页面时给出提醒，防止误关导致上传中断
+        window.addEventListener('beforeunload', function (e) {
+            if (isUploading) {
+                e.preventDefault();
+                e.returnValue = '';
             }
         });
     </script>

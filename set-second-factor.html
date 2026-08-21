@@ -35,14 +35,23 @@
         }
         const currentUser = localStorage.getItem('currentUser') || '';
 
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str).replace(/[&<>]/g, function (m) {
+                return m === '&' ? '&amp;' : (m === '<' ? '&lt;' : '&gt;');
+            });
+        }
+
         document.getElementById('setForm').addEventListener('submit', async (e) => {
             e.preventDefault();
+            const btn = document.querySelector('#setForm button');
             const secondFactor = document.getElementById('secondFactor').value.trim();
             const resultDiv = document.getElementById('result');
             if (secondFactor.length !== 8) {
                 resultDiv.innerHTML = '<p style="color:red;">验证码必须为8位</p>';
                 return;
             }
+            if (btn) btn.disabled = true;
             resultDiv.innerHTML = '设置中...';
             try {
                 const res = await fetch('/api/set-second-factor', {
@@ -64,10 +73,12 @@
                         window.location.href = 'login.html';
                     }, 2000);
                 } else {
-                    resultDiv.innerHTML = `<p style="color:red;">❌ 设置失败: ${data.error}</p>`;
+                    resultDiv.innerHTML = `<p style="color:red;">❌ 设置失败: ${escapeHtml(data.error || '未知错误')}</p>`;
                 }
             } catch (err) {
-                resultDiv.innerHTML = `<p style="color:red;">网络错误: ${err.message}</p>`;
+                resultDiv.innerHTML = `<p style="color:red;">网络错误: ${escapeHtml(err.message)}</p>`;
+            } finally {
+                if (btn) btn.disabled = false;
             }
         });
     </script>

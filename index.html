@@ -261,6 +261,9 @@
     </style>
 </head>
 <body>
+    <!-- 无 JS 环境提示 -->
+    <noscript><div style="position:fixed;top:0;left:0;right:0;background:#ff6b6b;color:#fff;padding:10px;text-align:center;z-index:99999;">本站功能需要启用 JavaScript 才能正常使用</div></noscript>
+
     <!-- 启动画面 -->
     <div id="splash" class="splash-screen">
         <div class="splash-content">
@@ -281,7 +284,7 @@
             <div id="user-area" style="margin-top: 30px; text-align: center;"></div>
             <div id="comic-list-area" style="display: none; margin-top: 30px;">
                 <h2>📚 在线漫画</h2>
-                <input type="text" id="search" placeholder="搜索漫画..." onkeyup="filterComics()">
+                <input type="text" id="search" placeholder="搜索漫画...">
                 <div id="comic-list" class="comic-grid"></div>
             </div>
             <div class="copyright">✿本网站由G_灵零7所有</div>
@@ -312,8 +315,22 @@
 
     <script>
         // ---------- 启动动画 ----------
+        let pageInitialized = false;
+
+        // 私密浏览等环境下 sessionStorage 可能抛异常，安全读取
+        let splashPlayed = false;
+        try { splashPlayed = sessionStorage.getItem('splashPlayed') === 'true'; } catch (e) { splashPlayed = false; }
+
+        // 兜底：即使脚本出错也保证主内容可见，避免一直停留在启动画面
+        window.addEventListener('error', function () {
+            var splash = document.getElementById('splash');
+            var main = document.getElementById('main-content');
+            if (splash) splash.classList.add('hidden');
+            if (main) { main.style.display = 'block'; main.style.opacity = '1'; }
+        });
+
         (function() {
-            if (sessionStorage.getItem('splashPlayed')) {
+            if (splashPlayed) {
                 document.getElementById('splash').classList.add('hidden');
                 document.getElementById('main-content').style.display = 'block';
                 document.getElementById('main-content').style.opacity = '1';
@@ -347,7 +364,7 @@
                     splash.classList.add('hidden');
                     mainContent.style.display = 'block';
                     setTimeout(() => mainContent.style.opacity = '1', 10);
-                    sessionStorage.setItem('splashPlayed', 'true');
+                    try { sessionStorage.setItem('splashPlayed', 'true'); } catch (e) {}
                     initPage();
                 }, 4750);
             });
@@ -355,6 +372,11 @@
 
         // ---------- 页面初始化 ----------
         async function initPage() {
+            // 防止重复初始化（如浏览器后退/前进触发 pageshow 与启动定时器同时调用）
+            // 导致菜单等事件被重复绑定、点击失效
+            if (pageInitialized) return;
+            pageInitialized = true;
+
             const isLoggedIn = localStorage.getItem('loggedIn') === 'true';
             const currentUser = localStorage.getItem('currentUser') || '';
             const userRole = localStorage.getItem('userRole') || '';
@@ -560,6 +582,7 @@
         let comicsData = [];
 
         async function loadComics() {
+            const listDiv = document.getElementById('comic-list');
             try {
                 const resp = await fetch('/api/comics', {
                     headers: { 'X-Auth-UserId': localStorage.getItem('currentUserId') || '' }
@@ -568,9 +591,12 @@
                 if (data.success) {
                     comicsData = data.data;
                     renderComics(comicsData);
+                } else {
+                    if (listDiv) listDiv.innerHTML = `<p>加载失败：${escapeHtml(data.error || '未知错误')}</p>`;
                 }
             } catch (err) {
                 console.error('加载漫画失败', err);
+                if (listDiv) listDiv.innerHTML = '<p>网络错误，请检查网络后 <a href="javascript:void(0)" onclick="location.reload()" style="color:#0070f3;">刷新重试</a></p>';
             }
         }
 
@@ -583,12 +609,13 @@
             }
             let html = '';
             for (let c of comics) {
+                if (c.id == null) continue;
                 html += `
                     <div class="comic-card" onclick="location.href='detail.html?id=${c.id}'">
-                        <img src="/api/proxy?url=${encodeURIComponent(c.cover_url)}" alt="${c.title}" loading="lazy">
-                        <h3>${escapeHtml(c.title)}</h3>
-                        <p>${escapeHtml(c.author)} · ${c.chapters}话</p>
-                        <div class="tags">${c.tags.map(t => `<span>${escapeHtml(t)}</span>`).join('')}</div>
+                        <img src="/api/proxy?url=${encodeURIComponent(c.cover_url || '')}" alt="${escapeHtml(c.title || '')}" loading="lazy" onerror="this.style.visibility='hidden'">
+                        <h3>${escapeHtml(c.title || '未知标题')}</h3>
+                        <p>${escapeHtml(c.author || '未知作者')} · ${c.chapters || 0}话</p>
+                        <div class="tags">${(c.tags || []).map(t => `<span>${escapeHtml(t)}</span>`).join('')}</div>
                     </div>
                 `;
             }
@@ -605,11 +632,18 @@
             });
         }
 
+        // 搜索输入防抖，避免每敲一个键就全量渲染
+        let searchTimer = null;
+        document.getElementById('search').addEventListener('input', function() {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(function() { window.filterComics(); }, 200);
+        });
+
         window.filterComics = function() {
-            const search = document.getElementById('search').value.toLowerCase();
-            const filtered = comicsData.filter(c => 
-                c.title.toLowerCase().includes(search) || 
-                c.author.toLowerCase().includes(search)
+            const search = (document.getElementById('search').value || '').toLowerCase();
+            const filtered = comicsData.filter(c =>
+                (c.title || '').toLowerCase().includes(search) ||
+                (c.author || '').toLowerCase().includes(search)
             );
             renderComics(filtered);
         };

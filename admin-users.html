@@ -117,11 +117,12 @@
                         <th>读取权限</th>
                         <th>注册时间</th>
                         <th>操作</th>
-                    </thead>
+                    </tr>
+                </thead>
                 <tbody id="userListBody">
-                     <td colspan="5">加载中...</td>
+                    <tr><td colspan="5">加载中...</td></tr>
                 </tbody>
-             </table>
+            </table>
         </div>
         <div id="manageResult" style="margin-top: 20px;"></div>
     </div>
@@ -163,15 +164,15 @@
                     body: JSON.stringify({ username, password, secondFactor, role })
                 });
                 const data = await res.json();
-                if (res.ok && data.success) {
+                if (data.success) {
                     resultDiv.innerHTML = '<p style="color:green;">✅ 用户创建成功</p>';
                     document.getElementById('createUserForm').reset();
                     loadUsers();
                 } else {
-                    resultDiv.innerHTML = `<p style="color:red;">❌ 创建失败: ${data.error}</p>`;
+                    resultDiv.innerHTML = `<p style="color:red;">❌ 创建失败: ${escapeHtml(data.error || '未知错误')}</p>`;
                 }
             } catch (err) {
-                resultDiv.innerHTML = `<p style="color:red;">网络错误: ${err.message}</p>`;
+                resultDiv.innerHTML = `<p style="color:red;">网络错误: ${escapeHtml(err.message)}</p>`;
             }
         });
 
@@ -194,7 +195,7 @@
                     tbody.innerHTML = `<tr><td colspan="5">加载失败: ${data.error}</td></tr>`;
                 }
             } catch (err) {
-                tbody.innerHTML = `<tr><td colspan="5">网络错误: ${err.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="5">网络错误: ${escapeHtml(err.message)}</td></tr>`;
             }
         }
 
@@ -257,7 +258,8 @@
         }
 
         function escapeHtml(str) {
-            return str.replace(/[&<>]/g, function(m) {
+            if (str == null) return '';
+            return String(str).replace(/[&<>]/g, function(m) {
                 if (m === '&') return '&amp;';
                 if (m === '<') return '&lt;';
                 if (m === '>') return '&gt;';
@@ -279,10 +281,10 @@
                     resultDiv.innerHTML = '<p style="color:green;">✅ 用户已删除</p>';
                     loadUsers();
                 } else {
-                    resultDiv.innerHTML = `<p style="color:red;">❌ 删除失败: ${data.error}</p>`;
+                    resultDiv.innerHTML = `<p style="color:red;">❌ 删除失败: ${escapeHtml(data.error || '未知错误')}</p>`;
                 }
             } catch (err) {
-                resultDiv.innerHTML = `<p style="color:red;">网络错误: ${err.message}</p>`;
+                resultDiv.innerHTML = `<p style="color:red;">网络错误: ${escapeHtml(err.message)}</p>`;
             }
         };
 
@@ -304,10 +306,10 @@
                     resultDiv.innerHTML = '<p style="color:green;">✅ 已提升为管理员</p>';
                     loadUsers();
                 } else {
-                    resultDiv.innerHTML = `<p style="color:red;">❌ 提权失败: ${data.error}</p>`;
+                    resultDiv.innerHTML = `<p style="color:red;">❌ 提权失败: ${escapeHtml(data.error || '未知错误')}</p>`;
                 }
             } catch (err) {
-                resultDiv.innerHTML = `<p style="color:red;">网络错误: ${err.message}</p>`;
+                resultDiv.innerHTML = `<p style="color:red;">网络错误: ${escapeHtml(err.message)}</p>`;
             }
         };
 
@@ -331,10 +333,10 @@
                     resultDiv.innerHTML = '<p style="color:green;">✅ 权限已更新</p>';
                     loadUsers();
                 } else {
-                    resultDiv.innerHTML = `<p style="color:red;">❌ 操作失败: ${data.error}</p>`;
+                    resultDiv.innerHTML = `<p style="color:red;">❌ 操作失败: ${escapeHtml(data.error || '未知错误')}</p>`;
                 }
             } catch (err) {
-                resultDiv.innerHTML = `<p style="color:red;">网络错误: ${err.message}</p>`;
+                resultDiv.innerHTML = `<p style="color:red;">网络错误: ${escapeHtml(err.message)}</p>`;
             }
         };
 

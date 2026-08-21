@@ -287,8 +287,29 @@
             }
         }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    <script>
+        // marked 与 DOMPurify 多 CDN 回退加载：单一 CDN 不可用时自动切换备用源
+        (function () {
+            var markedSrcs = [
+                'https://cdn.jsdelivr.net/npm/marked/marked.min.js',
+                'https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js',
+                'https://unpkg.com/marked@4.3.0/marked.min.js'
+            ];
+            for (var i = 0; i < markedSrcs.length; i++) {
+                document.write('<script src="' + markedSrcs[i] + '"><\/script>');
+                if (typeof marked !== 'undefined') break;
+            }
+            var purifySrcs = [
+                'https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js',
+                'https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js',
+                'https://unpkg.com/dompurify@3.0.6/dist/purify.min.js'
+            ];
+            for (var j = 0; j < purifySrcs.length; j++) {
+                document.write('<script src="' + purifySrcs[j] + '"><\/script>');
+                if (typeof DOMPurify !== 'undefined') break;
+            }
+        })();
+    </script>
 </head>
 <body>
     <div class="container">
@@ -367,7 +388,7 @@
         function buildTreeHTML(node) {
             if (!node) return '';
             if (node.type === 'file') {
-                return `<div class="file-item" data-path="${node.path || node.name}">
+                return `<div class="file-item" data-path="${escapeAttr(node.path || node.name)}">
                             <span class="file-name">${escapeHtml(node.name.replace('.md', ''))}</span>
                         </div>`;
             }
@@ -410,6 +431,10 @@
         // 加载文档内容
         async function loadDocument(path) {
             docContent.innerHTML = '<div class="loading">加载文档...</div>';
+            if (typeof marked === 'undefined' || typeof DOMPurify === 'undefined') {
+                docContent.innerHTML = '<div class="loading" style="color:red;">文档渲染库加载失败，请检查网络后刷新重试</div>';
+                return;
+            }
             try {
                 const res = await fetch(`/api/docs/content?path=${encodeURIComponent(path)}`);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -418,7 +443,7 @@
                 const cleanHtml = DOMPurify.sanitize(rawHtml);
                 docContent.innerHTML = cleanHtml;
             } catch (err) {
-                docContent.innerHTML = `<div class="loading" style="color:red;">加载失败: ${err.message}</div>`;
+                docContent.innerHTML = `<div class="loading" style="color:red;">加载失败: ${escapeHtml(err.message)}</div>`;
             }
         }
 
@@ -474,13 +499,18 @@
         }
 
         function escapeHtml(str) {
-            if (!str) return '';
-            return str.replace(/[&<>]/g, function(m) {
+            if (str == null) return '';
+            return String(str).replace(/[&<>]/g, function(m) {
                 if (m === '&') return '&amp;';
                 if (m === '<') return '&lt;';
                 if (m === '>') return '&gt;';
                 return m;
             });
+        }
+
+        // 用于 HTML 属性上下文的转义（额外转义引号）
+        function escapeAttr(str) {
+            return escapeHtml(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         }
 
         loadTree();

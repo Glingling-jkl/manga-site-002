@@ -293,7 +293,6 @@
             font-size: 0.9rem;
         }
     </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -345,12 +344,22 @@
             return new Blob([merged]);
         }
 
+        let coverObjectUrl = null;
         async function loadCoverImage(imgElement, url) {
+            // 释放上一次封面占用的 Blob URL，避免页面内反复加载导致内存泄漏
+            if (coverObjectUrl) {
+                URL.revokeObjectURL(coverObjectUrl);
+                coverObjectUrl = null;
+            }
+            if (!url) {
+                imgElement.src = '';
+                return;
+            }
             try {
                 const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
                 const blob = await fetchWithChunks(proxyUrl);
-                const objectUrl = URL.createObjectURL(blob);
-                imgElement.src = objectUrl;
+                coverObjectUrl = URL.createObjectURL(blob);
+                imgElement.src = coverObjectUrl;
             } catch (err) {
                 console.error('封面加载失败', url, err);
                 imgElement.src = '';
@@ -409,20 +418,20 @@
             const uploaderName = extractUsername(comic.uploader);
             const infoHtml = `
                 <div class="comic-info-grid">
-                    <div class="comic-info-card"><strong>作者：</strong> ${escapeHtml(comic.author)}</div>
-                    <div class="comic-info-card"><strong>上传者：</strong> ${escapeHtml(uploaderName)}</div>
-                    <div class="comic-info-card"><strong>章数：</strong> ${comic.chapters} 话</div>
-                    <div class="comic-info-card"><strong>总页数：</strong> ${comic.pages} 页</div>
-                    <div class="comic-info-card"><strong>上传时间：</strong> ${new Date(comic.uploaded_at).toLocaleDateString()}</div>
+                    <div class="comic-info-card"><strong>作者：</strong> ${escapeHtml(comic.author || '未知')}</div>
+                    <div class="comic-info-card"><strong>上传者：</strong> ${escapeHtml(uploaderName || '未知')}</div>
+                    <div class="comic-info-card"><strong>章数：</strong> ${comic.chapters || 0} 话</div>
+                    <div class="comic-info-card"><strong>总页数：</strong> ${comic.pages || 0} 页</div>
+                    <div class="comic-info-card"><strong>上传时间：</strong> ${formatDate(comic.uploaded_at)}</div>
                     <div class="comic-info-card tags-card"><strong>标签：</strong> ${escapeHtml(tags)}</div>
                 </div>
             `;
             const html = `
-                <img id="cover-img" data-src="${comic.cover_url}" alt="${comic.title}">
-                <h1>${escapeHtml(comic.title)}</h1>
+                <img id="cover-img" alt="${escapeHtml(comic.title || '')}">
+                <h1>${escapeHtml(comic.title || '未知标题')}</h1>
                 ${infoHtml}
                 <p>${escapeHtml(comic.description || '')}</p>
-                <button onclick="startReading('${comic.zip_url}')">📖 开始阅读</button>
+                <button id="start-reading-btn">📖 开始阅读</button>
                 ${warningHtml}
             `;
             document.getElementById('comic-detail').innerHTML = html;
@@ -431,10 +440,24 @@
             if (coverImg) {
                 loadCoverImage(coverImg, comic.cover_url);
             }
+            // 用事件绑定代替内联 onclick，避免 zip_url 含特殊字符时注入或出错
+            const startBtn = document.getElementById('start-reading-btn');
+            if (startBtn) {
+                startBtn.addEventListener('click', function () { startReading(comic.zip_url); });
+            }
         }
 
         function startReading(zipUrl) {
+            if (!zipUrl) {
+                alert('该漫画缺少文件链接，无法阅读');
+                return;
+            }
             window.location.href = `reader.html?zip=${encodeURIComponent(zipUrl)}&id=${comicId}`;
+        }
+
+        function formatDate(value) {
+            const d = new Date(value);
+            return isNaN(d.getTime()) ? '未知' : d.toLocaleDateString();
         }
 
         // ========== 评论区 ==========
@@ -503,17 +526,17 @@
                         <div class="comment-user-info">
                             <span class="comment-user">${escapeHtml(top.username)}</span>
                             <span class="comment-group">${groupName}</span>
-                            <span class="comment-time">${new Date(top.created_at).toLocaleString()}</span>
+                            <span class="comment-time">${fmtTime(top.created_at)}</span>
                             <span class="reply-button" data-id="${top.id}">回复</span>
                         </div>
                         <div class="comment-content">${escapeHtml(top.content)}</div>
                         <div class="reply-form" id="reply-form-${top.id}" style="display: none;">
                             <div class="reply-textarea-row">
-                                <textarea rows="2" placeholder="回复 @${escapeHtml(top.username)} ..."></textarea>
+                                <textarea rows="2" placeholder="回复 @${escapeAttr(top.username)} ..."></textarea>
                             </div>
                             <div class="reply-actions-row">
                                 <button data-id="${top.id}">发送</button>
-                                <div class="reply-at-toggle inactive" data-id="${top.id}" data-username="${escapeHtml(top.username)}">@</div>
+                                <div class="reply-at-toggle inactive" data-id="${top.id}" data-username="${escapeAttr(top.username)}">@</div>
                             </div>
                         </div>
                 `;
@@ -536,7 +559,7 @@
                             <div class="reply-item" data-comment-id="${reply.id}" data-user-id="${reply.user_id}" data-user-role="${reply.user_role}" data-created-at="${reply.created_at}">
                                 <span class="reply-user">${escapeHtml(reply.username)}</span>
                                 <span class="reply-group">${replyGroup}</span>
-                                <span class="reply-time">${new Date(reply.created_at).toLocaleString()}</span>
+                                <span class="reply-time">${fmtTime(reply.created_at)}</span>
                                 <div class="reply-text">${contentHtml}</div>
                             </div>
                         `;
@@ -749,8 +772,18 @@
         }
 
         function escapeHtml(str) {
-            if (!str) return '';
-            return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : (m === '<' ? '&lt;' : '&gt;'));
+            if (str == null) return '';
+            return String(str).replace(/[&<>]/g, m => m === '&' ? '&amp;' : (m === '<' ? '&lt;' : '&gt;'));
+        }
+
+        // 用于 HTML 属性上下文的转义（额外转义引号）
+        function escapeAttr(str) {
+            return escapeHtml(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        function fmtTime(value) {
+            const d = new Date(value);
+            return isNaN(d.getTime()) ? '未知时间' : d.toLocaleString();
         }
 
         // ========== 评论输入框 ==========
