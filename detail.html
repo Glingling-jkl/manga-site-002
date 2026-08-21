@@ -10,39 +10,89 @@
             text-align: center;
         }
         .comic-detail img {
-            max-width: 200px;
-            border-radius: 8px;
-            background: #ddd;
+            max-width: 220px;
+            border-radius: 16px;
+            background: #eef1f6;
+            box-shadow: var(--shadow-lg);
+            animation: popIn 0.55s var(--ease-spring) both;
+        }
+        .comic-detail h1 {
+            margin-top: 18px;
+            font-size: 1.7rem;
+            font-weight: 800;
+            background: linear-gradient(120deg, var(--ink) 40%, var(--primary) 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            animation: fadeUp 0.5s 0.08s var(--ease-out) both;
+        }
+        .comic-detail > p {
+            color: var(--ink-soft);
+            margin-top: 12px;
+            line-height: 1.6;
+            animation: fadeUp 0.5s 0.12s var(--ease-out) both;
         }
         .comic-detail button {
-            font-size: 1.2rem;
-            margin-top: 20px;
+            font-size: 1.1rem;
+            margin-top: 22px;
+            width: auto;
+            padding: 14px 42px;
+            border-radius: var(--radius-pill);
+            animation: fadeUp 0.5s 0.16s var(--ease-out) both;
+        }
+        .back-btn {
+            width: auto;
+            padding: 10px 22px;
+            margin-bottom: 22px;
+            border-radius: var(--radius-pill);
         }
         .comic-info-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 12px;
-            margin: 20px 0;
+            margin: 22px 0;
         }
         .comic-info-card {
-            background: #f8f9fa;
-            border-radius: 12px;
-            padding: 12px 16px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            background: linear-gradient(160deg, #ffffff, #f7faff);
+            border: 1px solid rgba(0, 112, 243, 0.08);
+            border-radius: 14px;
+            padding: 13px 16px;
+            box-shadow: var(--shadow-sm);
             text-align: left;
             font-size: 0.9rem;
             line-height: 1.4;
             word-break: break-word;
+            transition: transform 0.2s var(--ease-spring), box-shadow 0.25s ease, border-color 0.2s ease;
+            animation: fadeUp 0.5s var(--ease-out) both;
+        }
+        .comic-info-card:nth-child(1) { animation-delay: 0.05s; }
+        .comic-info-card:nth-child(2) { animation-delay: 0.1s; }
+        .comic-info-card:nth-child(3) { animation-delay: 0.15s; }
+        .comic-info-card:nth-child(4) { animation-delay: 0.2s; }
+        .comic-info-card:nth-child(5) { animation-delay: 0.25s; }
+        .comic-info-card:nth-child(6) { animation-delay: 0.3s; }
+        .comic-info-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-md);
+            border-color: rgba(0, 112, 243, 0.3);
         }
         .comic-info-card strong {
             color: #2c3e50;
-            font-weight: 600;
+            font-weight: 700;
             margin-right: 8px;
             display: inline-block;
             min-width: 52px;
         }
         .comic-info-card.tags-card {
             grid-column: 1 / -1;
+        }
+        .adult-warning {
+            color: #ff6b6b;
+            margin-top: 12px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            animation: glowPulse 3s ease-in-out infinite;
+            border-radius: var(--radius-pill);
         }
         @media (max-width: 768px) {
             .comic-info-grid {
@@ -77,23 +127,26 @@
             text-align: left;
         }
         .comments-section h3 {
-            border-bottom: 1px solid #eee;
+            border-bottom: 2px solid var(--pink-light);
             padding-bottom: 10px;
+            font-size: 1.2rem;
+            font-weight: 800;
         }
         .comment-item {
-            padding: 10px 0;
+            padding: 12px 0;
             border-bottom: 1px solid #f0f0f0;
             position: relative;
             cursor: default;
             user-select: none;
+            animation: fadeUp 0.4s var(--ease-out) both;
         }
         .comment-user-info {
             display: inline-block;
             margin-bottom: 5px;
         }
         .comment-user {
-            font-weight: bold;
-            color: #0070f3;
+            font-weight: 700;
+            color: var(--primary);
             font-size: 0.9rem;
         }
         .comment-group {
@@ -107,31 +160,32 @@
         }
         .comment-time {
             font-size: 0.7rem;
-            color: #999;
+            color: var(--ink-faint);
             margin-left: 10px;
         }
         .comment-content {
             margin-top: 5px;
             font-size: 0.9rem;
-            line-height: 1.4;
+            line-height: 1.5;
             white-space: pre-wrap;
             word-break: break-word;
         }
         .replies-container {
             margin-left: 24px;
             padding-left: 12px;
-            border-left: 2px solid #ddd;
+            border-left: 2px solid var(--pink-light);
             margin-top: 8px;
         }
         .reply-item {
             margin-top: 12px;
-            padding: 8px;
-            background: #f9f9f9;
-            border-radius: 8px;
+            padding: 10px;
+            background: linear-gradient(160deg, #fbfcff, #f7f9fc);
+            border-radius: 12px;
+            animation: fadeUp 0.4s var(--ease-out) both;
         }
         .reply-user {
-            font-weight: bold;
-            color: #0070f3;
+            font-weight: 700;
+            color: var(--primary);
             font-size: 0.85rem;
         }
         .reply-group {
@@ -144,7 +198,7 @@
         }
         .reply-time {
             font-size: 0.7rem;
-            color: #999;
+            color: var(--ink-faint);
             margin-left: 10px;
         }
         .reply-text {
@@ -153,35 +207,42 @@
             line-height: 1.4;
         }
         .reply-at {
-            color: #0070f3;
-            font-weight: 500;
+            color: var(--primary);
+            font-weight: 600;
         }
         .reply-button {
             font-size: 0.7rem;
-            color: #0070f3;
+            color: var(--primary);
             cursor: pointer;
             margin-left: 10px;
             display: inline-block;
+            font-weight: 600;
+            padding: 2px 10px;
+            border-radius: 12px;
+            background: rgba(0, 112, 243, 0.08);
+            transition: background 0.2s ease;
         }
         .reply-button:hover {
-            text-decoration: underline;
+            background: rgba(0, 112, 243, 0.16);
         }
         .reply-form {
             margin-top: 10px;
             margin-bottom: 10px;
-            background: #f5f5f5;
+            background: #f5f7fb;
+            border: 1px solid rgba(0, 112, 243, 0.1);
             padding: 12px;
-            border-radius: 8px;
+            border-radius: 14px;
             display: none;
+            animation: fadeUp 0.25s var(--ease-out);
         }
         .reply-form .reply-textarea-row {
             margin-bottom: 8px;
         }
         .reply-form .reply-textarea-row textarea {
             width: 100%;
-            padding: 8px;
-            border-radius: 8px;
-            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 12px;
+            border: 1px solid #e3e8f0;
             resize: vertical;
             font-size: 0.85rem;
             box-sizing: border-box;
@@ -192,17 +253,20 @@
             align-items: center;
         }
         .reply-form button {
-            background: #0070f3;
+            background: var(--grad-brand);
             color: white;
             border: none;
-            padding: 6px 16px;
+            padding: 7px 18px;
             border-radius: 20px;
             cursor: pointer;
             font-size: 0.8rem;
+            font-weight: 700;
             white-space: nowrap;
+            width: auto;
+            box-shadow: 0 4px 12px rgba(0, 112, 243, 0.3);
         }
         .reply-form button:hover {
-            background: #0051b3;
+            filter: brightness(1.06);
         }
         .reply-at-toggle {
             display: inline-flex;
@@ -216,11 +280,12 @@
             font-size: 1rem;
             font-weight: bold;
             cursor: pointer;
-            transition: background 0.2s;
+            transition: background 0.2s, transform 0.2s var(--ease-spring);
             flex-shrink: 0;
         }
         .reply-at-toggle.active {
-            background: #0070f3;
+            background: var(--primary);
+            transform: scale(1.1);
         }
         .reply-at-toggle.inactive {
             background: #aaa;
@@ -230,73 +295,79 @@
         }
         .comment-form textarea {
             width: 100%;
-            padding: 10px;
-            border-radius: 8px;
-            border: 1px solid #ddd;
+            padding: 12px;
+            border-radius: 14px;
+            border: 1px solid #e3e8f0;
             resize: vertical;
+            background: rgba(255, 255, 255, 0.85);
         }
         .comment-form button {
             margin-top: 10px;
-            background: #0070f3;
+            background: var(--grad-brand);
             color: white;
             border: none;
-            padding: 8px 20px;
+            padding: 10px 26px;
             border-radius: 20px;
             cursor: pointer;
-        }
-        .comment-form button:hover {
-            background: #0051b3;
+            font-weight: 700;
+            width: auto;
+            box-shadow: 0 6px 16px rgba(0, 112, 243, 0.3);
         }
         .comment-error {
-            color: red;
+            color: #ef4444;
             margin-top: 5px;
+            font-size: 0.85rem;
         }
         .login-prompt {
             margin-top: 20px;
-            background: #f9f9f9;
-            padding: 15px;
-            border-radius: 8px;
+            background: linear-gradient(160deg, #f9fbff, #fdf6f9);
+            border: 1px dashed rgba(0, 112, 243, 0.25);
+            padding: 18px;
+            border-radius: 14px;
             text-align: center;
         }
+        .login-prompt a { color: var(--primary); font-weight: 700; text-decoration: none; }
         .comment-context-menu {
             position: fixed;
-            background: white;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            background: rgba(255, 255, 255, 0.97);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
             z-index: 10000;
             min-width: 120px;
+            overflow: hidden;
+            animation: popIn 0.16s var(--ease-spring);
         }
         .comment-context-menu ul {
             list-style: none;
             margin: 0;
-            padding: 4px 0;
+            padding: 6px;
         }
         .comment-context-menu li {
-            padding: 6px 12px;
+            padding: 8px 14px;
             cursor: pointer;
             font-size: 0.9rem;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: background 0.15s ease;
         }
         .comment-context-menu li:hover {
-            background: #f0f0f0;
+            background: rgba(0, 112, 243, 0.08);
         }
         .comment-context-menu li.disabled {
-            color: #999;
+            color: var(--ink-faint);
             cursor: not-allowed;
         }
         .comment-context-menu li.disabled:hover {
             background: none;
         }
-        .adult-warning {
-            color: #ff6b6b;
-            margin-top: 10px;
-            font-size: 0.9rem;
-        }
     </style>
+    <script src="common.js" defer></script>
 </head>
 <body>
     <div class="container">
-        <button onclick="location.href='index.html'" style="margin-bottom:20px;">⬅ 返回列表</button>
+        <button class="btn-ghost back-btn" onclick="location.href='index.html'">⬅ 返回列表</button>
         <div id="comic-detail" class="comic-detail"></div>
 
         <div id="comments-section" class="comments-section">

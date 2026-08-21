@@ -6,6 +6,23 @@
     <title>设置第二层验证码</title>
     <link rel="stylesheet" href="style.css">
     <style>
+        .set-title {
+            text-align: center;
+            margin-bottom: 12px;
+        }
+        .set-title h2 {
+            font-size: 1.4rem;
+            font-weight: 800;
+            background: linear-gradient(120deg, #0070f3, #7c5cff 60%, #ff8fab);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        .set-title p {
+            margin-top: 10px;
+            color: var(--ink-soft);
+            font-size: 0.9rem;
+        }
         .set-form {
             max-width: 400px;
             margin: 0 auto;
@@ -13,12 +30,18 @@
         .set-form input, .set-form button {
             margin: 10px 0;
         }
+        .set-form button {
+            animation: fadeUp 0.5s 0.08s var(--ease-out) both;
+        }
     </style>
+    <script src="common.js" defer></script>
 </head>
 <body>
     <div class="container">
-        <h2>🔐 设置第二层验证码</h2>
-        <p>为了账户安全，请设置一个8位的第二层验证码。它将在IP地址变化时要求输入。</p>
+        <div class="set-title">
+            <h2>🔐 设置第二层验证码</h2>
+            <p>为了账户安全，请设置一个8位的第二层验证码。它将在IP地址变化时要求输入。</p>
+        </div>
         <form id="setForm" class="set-form">
             <input type="text" id="secondFactor" placeholder="8位验证码 (可包含字母、数字、特殊符号)" maxlength="8" required>
             <button type="submit">设置</button>

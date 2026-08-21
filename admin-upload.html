@@ -127,7 +127,100 @@
             color: red;
             margin-left: 4px;
         }
+        /* ============ 新布局与动效 ============ */
+        .page-header {
+            text-align: center;
+            margin-bottom: 20px;
+            animation: fadeUp 0.5s var(--ease-out) both;
+        }
+        .page-header h2 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: linear-gradient(120deg, #0070f3, #7c5cff 60%, #ff8fab);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        .page-header p {
+            color: var(--ink-soft);
+            margin-top: 8px;
+            font-size: 0.95rem;
+        }
+        .step-pills {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 14px;
+        }
+        .step-pill {
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: var(--primary);
+            background: rgba(0, 112, 243, 0.08);
+            padding: 6px 14px;
+            border-radius: var(--radius-pill);
+            animation: fadeUp 0.5s var(--ease-out) both;
+        }
+        .upload-area {
+            border: 2px dashed rgba(0, 112, 243, 0.35);
+            border-radius: 18px;
+            padding: 36px 30px;
+            text-align: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            background: linear-gradient(160deg, rgba(255, 255, 255, 0.7), rgba(0, 112, 243, 0.04));
+            transition: all 0.3s ease;
+            animation: fadeUp 0.5s 0.06s var(--ease-out) both;
+        }
+        .upload-area:hover {
+            border-color: var(--primary);
+            background: rgba(0, 112, 243, 0.06);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+        .file-info, .cover-area {
+            border-radius: 14px;
+            border: 1px solid rgba(0, 0, 0, 0.06);
+            box-shadow: var(--shadow-sm);
+            animation: fadeUp 0.4s var(--ease-out) both;
+        }
+        .preview-grid {
+            animation: fadeUp 0.4s var(--ease-out) both;
+        }
+        .comic-form {
+            animation: fadeUp 0.5s 0.1s var(--ease-out) both;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #0070f3, #4da3ff, #ff8fab);
+            border-radius: 2px;
+            box-shadow: 0 0 8px rgba(77, 163, 255, 0.6);
+        }
+        .status-success { background: linear-gradient(135deg, #4ade80, #22c55e); }
+        .status-error { background: linear-gradient(135deg, #f87171, #ef4444); }
+        .status-uploading { background: linear-gradient(135deg, #fbbf24, #f59e0b); }
+        .btn-submit {
+            width: auto;
+            padding: 13px 44px;
+            border-radius: var(--radius-pill);
+            box-shadow: 0 8px 22px rgba(0, 112, 243, 0.4);
+            animation: glowPulse 3.2s ease-in-out infinite;
+        }
+        .admin-link {
+            margin-top: 18px;
+            text-align: center;
+        }
+        .admin-link a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 0.92rem;
+            transition: opacity 0.2s ease;
+        }
+        .admin-link a:hover { opacity: 0.8; }
     </style>
+    <script src="common.js" defer></script>
     <script>
         // JSZip 多 CDN 回退加载：单一 CDN 不可用时自动切换备用源
         (function () {
@@ -145,8 +238,16 @@
 </head>
 <body>
     <div class="container">
-        <h2>📤 上传漫画（自动分片）</h2>
-        <p>1. 选择 ZIP 文件 → 2. 上传封面 → 3. 填写信息 → 4. 自动分片上传</p>
+        <div class="page-header">
+            <h2>📤 上传漫画</h2>
+            <p>自动分片 · 断点续传 · 更稳定的上传体验</p>
+            <div class="step-pills">
+                <span class="step-pill">1 选择 ZIP</span>
+                <span class="step-pill">2 上传封面</span>
+                <span class="step-pill">3 填写信息</span>
+                <span class="step-pill">4 自动分片上传</span>
+            </div>
+        </div>
 
         <!-- ZIP 上传区域 -->
         <div class="upload-area" id="zipUploadArea">

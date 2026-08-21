@@ -5,38 +5,117 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>登录 · 漫画站</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        .login-box {
+            position: relative;
+            overflow: hidden;
+            animation: popIn 0.5s var(--ease-spring) both;
+        }
+        .login-box::before {
+            content: '';
+            position: absolute;
+            top: -80px; right: -80px;
+            width: 220px; height: 220px;
+            background: radial-gradient(circle, rgba(255, 182, 193, 0.35), transparent 70%);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+        .login-box::after {
+            content: '';
+            position: absolute;
+            bottom: -70px; left: -70px;
+            width: 180px; height: 180px;
+            background: radial-gradient(circle, rgba(0, 112, 243, 0.16), transparent 70%);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+        .login-title {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .lock-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 64px; height: 64px;
+            font-size: 1.7rem;
+            border-radius: 20px;
+            background: var(--grad-pink);
+            color: #fff;
+            box-shadow: 0 10px 26px rgba(255, 143, 171, 0.45);
+            animation: floatY 4.5s ease-in-out infinite;
+        }
+        .login-title h2 {
+            margin-top: 14px;
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: linear-gradient(120deg, #0070f3, #7c5cff 60%, #ff8fab);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        .login-box input {
+            animation: fadeUp 0.5s var(--ease-out) both;
+        }
+        .login-box button {
+            animation: fadeUp 0.5s 0.08s var(--ease-out) both;
+        }
+        #message {
+            text-align: center;
+            min-height: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        .back-home {
+            display: inline-block;
+            margin-top: 18px;
+            color: var(--ink-soft);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: color 0.2s ease, transform 0.2s ease;
+        }
+        .back-home:hover { color: var(--primary); transform: translateX(-3px); }
+        @media (prefers-reduced-motion: reduce) {
+            .lock-icon { animation: none; }
+        }
+    </style>
+    <script src="common.js" defer></script>
 </head>
 <body>
     <!-- 无 JS 环境提示 -->
     <noscript><div style="position:fixed;top:0;left:0;right:0;background:#ff6b6b;color:#fff;padding:10px;text-align:center;z-index:99999;">本站功能需要启用 JavaScript 才能正常使用</div></noscript>
 
     <div class="login-box">
-        <h2>🔐 登录漫画站</h2>
-        
+        <div class="login-title">
+            <span class="lock-icon">🔐</span>
+            <h2>登录漫画站</h2>
+        </div>
+
         <!-- 登录表单（初始可见） -->
         <div id="loginForm">
             <input type="text" id="username" placeholder="用户名">
             <input type="password" id="password" placeholder="密码">
-            <button onclick="submitLogin()">登录</button>
+            <button class="btn-shine" onclick="submitLogin()">登录</button>
         </div>
 
         <!-- 第二层验证表单（初始隐藏） -->
         <div id="secondFactorForm" style="display: none;">
             <p>IP地址异常，请输入第二层验证码</p>
             <input type="text" id="secondFactor" placeholder="8位验证码" maxlength="8">
-            <button onclick="submitSecondFactor()">验证</button>
+            <button class="btn-shine" onclick="submitSecondFactor()">验证</button>
         </div>
 
         <!-- 设置第二因子表单（初始隐藏） -->
         <div id="setSecondFactorForm" style="display: none;">
             <p>您的账户尚未设置第二层验证码。请设置一个8位验证码，用于IP变化时的安全验证。</p>
             <input type="text" id="newSecondFactor" placeholder="8位验证码" maxlength="8">
-            <button onclick="submitSetSecondFactor()">设置并登录</button>
+            <button class="btn-shine" onclick="submitSetSecondFactor()">设置并登录</button>
         </div>
 
         <p id="message" style="color:red; margin-top:15px;"></p>
         <p style="margin-top:20px; text-align:center;">
-            <a href="index.html">← 返回主页</a>
+            <a class="back-home" href="index.html">← 返回主页</a>
         </p>
     </div>
 

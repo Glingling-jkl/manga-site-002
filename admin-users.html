@@ -6,58 +6,103 @@
     <title>用户管理</title>
     <link rel="stylesheet" href="style.css">
     <style>
+        .page-header {
+            text-align: center;
+            margin-bottom: 22px;
+            animation: fadeUp 0.5s var(--ease-out) both;
+        }
+        .page-header h2 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: linear-gradient(120deg, #0070f3, #7c5cff 60%, #ff8fab);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
         .user-form {
             max-width: 400px;
             margin: 0 auto;
+            padding: 20px 24px;
+            background: linear-gradient(160deg, #f9fbff, #fdf6f9);
+            border: 1px dashed rgba(0, 112, 243, 0.25);
+            border-radius: 18px;
+            animation: fadeUp 0.5s 0.06s var(--ease-out) both;
         }
         .user-form input, .user-form select, .user-form button {
             margin: 10px 0;
         }
         table {
             width: 100%;
-            border-collapse: collapse;
+            border-collapse: separate;
+            border-spacing: 0;
             margin-top: 20px;
             font-size: 0.85rem;
-            min-width: 500px; /* 增加最小宽度，防止过窄 */
+            min-width: 500px;
+            background: #fff;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid rgba(0, 0, 0, 0.05);
         }
         th, td {
-            padding: 8px 6px;
+            padding: 10px 8px;
             text-align: left;
-            border-bottom: 1px solid #ddd;
+            border-bottom: 1px solid #f0f2f6;
             word-break: break-word;
         }
+        th {
+            background: linear-gradient(160deg, #f3f7ff, #fdf3f7);
+            color: var(--ink);
+            font-weight: 700;
+        }
+        tbody tr {
+            transition: background 0.15s ease;
+            animation: fadeUp 0.35s var(--ease-out) both;
+        }
+        tbody tr:hover {
+            background: rgba(0, 112, 243, 0.04);
+        }
+        tbody tr:last-child td { border-bottom: none; }
         .action-buttons {
             display: flex;
             flex-direction: column;
-            gap: 2px; /* 减小上下间隔 */
+            gap: 4px;
         }
         .action-btn {
-            padding: 4px 8px;
+            padding: 5px 10px;
             border: none;
-            border-radius: 4px;
+            border-radius: 10px;
             cursor: pointer;
             font-size: 0.8rem;
+            font-weight: 700;
             white-space: nowrap;
+            width: auto;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
+            transition: transform 0.15s var(--ease-spring), filter 0.2s ease;
+        }
+        .action-btn:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.08);
         }
         .delete-btn {
-            background: #f44336;
+            background: linear-gradient(135deg, #f87171, #ef4444);
             color: white;
         }
         .promote-btn {
-            background: #4caf50;
+            background: linear-gradient(135deg, #4ade80, #22c55e);
             color: white;
         }
         .adult-btn {
-            background: #ff9800;
+            background: linear-gradient(135deg, #fbbf24, #f59e0b);
             color: white;
         }
         /* 角色标签样式（正方形小矩形） */
         .role-badge {
             display: inline-block;
-            padding: 2px 8px;
-            border-radius: 4px; /* 小矩形，非圆形 */
-            font-size: 0.8rem;
-            font-weight: 500;
+            padding: 3px 10px;
+            border-radius: 8px;
+            font-size: 0.78rem;
+            font-weight: 600;
             text-align: center;
         }
         .role-badge.user {
@@ -65,31 +110,35 @@
             color: white;
         }
         .role-badge.admin {
-            background: #ffc107;
-            color: white; /* 白色文字 */
+            background: linear-gradient(135deg, #fbbf24, #f59e0b);
+            color: white;
         }
         .role-badge.system {
-            background: #dc3545;
+            background: linear-gradient(135deg, #f87171, #dc3545);
             color: white;
         }
         /* 读取权限样式 */
         .read-permit-normal {
-            color: #ffc107;
-            font-weight: 500;
+            color: #f59e0b;
+            font-weight: 600;
         }
         .read-permit-special {
-            color: #f44336;
-            font-weight: 500;
+            color: #ef4444;
+            font-weight: 600;
         }
         /* 表格容器横向滚动 */
         .table-wrapper {
             overflow-x: auto;
+            animation: fadeUp 0.5s 0.12s var(--ease-out) both;
         }
     </style>
+    <script src="common.js" defer></script>
 </head>
 <body>
     <div class="container">
-        <h2>👥 用户管理</h2>
+        <div class="page-header">
+            <h2>👥 用户管理</h2>
+        </div>
 
         <form id="createUserForm" class="user-form">
             <input type="text" id="username" placeholder="用户名 (至少3位)" required>
