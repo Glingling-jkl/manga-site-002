@@ -9,7 +9,16 @@
         .login-box {
             position: relative;
             overflow: hidden;
+            isolation: isolate; /* 建立层叠上下文，让装饰光斑稳定位于内容之下 */
+            border: 2px solid transparent;
+            background:
+                linear-gradient(#ffffff, #ffffff) padding-box,
+                linear-gradient(135deg, #ffb6c1 0%, #4da3ff 100%) border-box;
             animation: popIn 0.5s var(--ease-spring) both;
+        }
+        .login-box::before,
+        .login-box::after {
+            z-index: -1; /* 光斑只在卡片背景之上、内容之下，不再遮挡图标与文字 */
         }
         .login-box::before {
             content: '';

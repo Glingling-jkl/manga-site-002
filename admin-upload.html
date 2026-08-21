@@ -208,8 +208,11 @@
             animation: glowPulse 3.2s ease-in-out infinite;
         }
         .admin-link {
-            margin-top: 18px;
-            text-align: center;
+            margin-top: 22px;
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
         }
         .admin-link a {
             color: var(--primary);
@@ -325,7 +328,8 @@
 
         <div id="result" style="margin-top: 20px;"></div>
         <div class="admin-link">
-            <a href="admin-manage.html">📋 管理已有漫画</a>
+            <a class="btn btn-ghost" href="admin-manage.html">📋 管理漫画</a>
+            <a class="btn btn-ghost" href="index.html">🏠 返回主页</a>
         </div>
     </div>
 

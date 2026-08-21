@@ -19,6 +19,17 @@
             background-clip: text;
             color: transparent;
         }
+        .page-actions {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 14px;
+        }
+        .page-actions .btn {
+            padding: 10px 24px;
+            font-size: 0.9rem;
+        }
         .comic-manage-item {
             display: flex;
             align-items: center;
@@ -81,6 +92,10 @@
     <div class="container">
         <div class="page-header">
             <h2>📋 管理漫画</h2>
+            <div class="page-actions">
+                <a class="btn btn-shine" href="admin-upload.html">📤 上传漫画</a>
+                <a class="btn btn-ghost" href="index.html">🏠 返回主页</a>
+            </div>
         </div>
         <div id="comic-list"></div>
         <div id="result" style="margin-top: 20px;"></div>
