@@ -394,7 +394,7 @@
             const maxRetries = 2;
             try {
                 console.log(`正在下载分片 ${partIndex}: ${url}`);
-                const response = await fetchWithTimeout(url, {}, 30000);
+                const response = await fetchWithTimeout(url, {}, 90000);
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status} ${response.statusText}`);
                 }
@@ -442,11 +442,17 @@
                                     progressPercent.innerText = percent + '%';
                                     console.log(`单文件下载进度: ${percent}%`);
                                 }
+                            } else {
+                                // 服务器未提供总大小（如流式响应）：实时显示已下载大小，进度条呈不确定状态
+                                const mb = (received / 1024 / 1024).toFixed(1);
+                                progressFill.style.width = '100%';
+                                progressFill.style.opacity = '0.35';
+                                progressPercent.innerText = mb + ' MB';
                             }
                         };
                         
-                        // 使用带进度的 fetch
-                        const arrayBuffer = await fetchWithProgress(proxyUrl, onProgress, {}, 60000);
+                        // 使用带进度的 fetch（大文件超时放宽到 5 分钟）
+                        const arrayBuffer = await fetchWithProgress(proxyUrl, onProgress, {}, 300000);
                         progressMessage.innerText = '解压中...';
                         const blob = new Blob([arrayBuffer], { type: 'application/zip' });
                         const file = new File([blob], 'comic.zip', { type: 'application/zip' });
@@ -506,6 +512,7 @@
                     // 受限并发下载所有分片：避免分片过多时一次性发起大量请求被限流
                     const MAX_CONCURRENCY = 4;
                     let nextPartIndex = 0;
+                    let downloadedParts = 0;
                     async function downloadWorker() {
                         while (nextPartIndex < info.parts.length && !hasError) {
                             const i = nextPartIndex++;
@@ -515,6 +522,9 @@
                             const images = await downloadAndExtractPart(partUrl, partIndex);
                             if (hasError) return;
                             partImages[partIndex - 1] = images;
+                            downloadedParts++;
+                            // 下载进度即时反馈（页面渲染进度由 tryRender 按顺序推进）
+                            threadInfo.innerText = `分片模式 (已下载 ${downloadedParts}/${info.parts.length})`;
                             console.log(`分片 ${partIndex} 下载完成`);
                             tryRender(); // 可能触发顺序渲染
                         }
@@ -564,7 +574,8 @@
                 const contentLength = response.headers.get('content-length');
                 const total = contentLength ? parseInt(contentLength, 10) : 0;
                 
-                if (!total || !onProgress || !response.body || typeof response.body.getReader !== 'function') {
+                // 只要有流式响应体就逐块读取并报告进度；total 为 0（无 Content-Length）时也能显示已接收大小
+                if (!onProgress || !response.body || typeof response.body.getReader !== 'function') {
                     return await response.arrayBuffer();
                 }
                 
