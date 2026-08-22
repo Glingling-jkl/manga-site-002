@@ -589,6 +589,17 @@
 
                 // 获取用户权限和偏好
                 await loadUserAdultStatus();
+
+                // 每次登录后弹一次新站宣传（仅登录用户，弹出后清除标记）
+                try {
+                    if (sessionStorage.getItem('siteModalPending') === '1') {
+                        sessionStorage.removeItem('siteModalPending');
+                        // 稍等片刻再弹：等待 common.js(defer) 加载完成，也配合主页入场动画的节奏
+                        setTimeout(function () {
+                            if (typeof window.showSiteModal === 'function') window.showSiteModal();
+                        }, 400);
+                    }
+                } catch (e) {}
             } else {
                 if (navUser) navUser.style.display = 'none';
                 if (navLogin) navLogin.style.display = '';

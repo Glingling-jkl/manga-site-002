@@ -152,6 +152,8 @@
         // 登录成功后的精细过渡：登录窗口放大淡出，主页以“镜头拉近”入场
         function goHomeAfterLogin() {
             try { sessionStorage.setItem('fromLogin', '1'); } catch (e) {}
+            // 标记本次登录需要弹出一次新站宣传（主页检测后弹出并清除，每次登录只弹一次）
+            try { sessionStorage.setItem('siteModalPending', '1'); } catch (e) {}
             const box = document.querySelector('.login-box');
             if (box) {
                 box.classList.add('leaving');
