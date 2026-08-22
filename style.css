@@ -466,27 +466,3 @@ a.btn {
     color: var(--ink-soft);
     background: none;
 }
-
-/* 文档中心侧边栏底部入口 */
-.sidebar-footer {
-    padding: 14px 20px 6px;
-    border-top: 1px solid #eef2f6;
-    margin-top: 16px;
-}
-.site-ad-btn {
-    width: 100%;
-    padding: 11px 14px;
-    font-size: 0.85rem;
-    font-weight: 700;
-    border-radius: var(--radius-pill);
-    border: none;
-    cursor: pointer;
-    color: #fff;
-    background: linear-gradient(135deg, #ff8fab, #4da3ff);
-    box-shadow: 0 6px 16px rgba(255, 143, 171, 0.35);
-    transition: transform 0.2s var(--ease-spring), filter 0.2s ease;
-}
-.site-ad-btn:hover {
-    transform: translateY(-2px);
-    filter: brightness(1.06);
-}

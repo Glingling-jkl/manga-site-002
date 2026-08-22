@@ -172,6 +172,26 @@
             padding: 8px 16px;
             border-radius: var(--radius-pill);
         }
+        /* 导航栏里的新站入口按钮（位于“文档中心”左侧） */
+        .site-ad-nav {
+            background: linear-gradient(135deg, #ff8fab, #4da3ff);
+            color: #fff;
+            border: none;
+            font-size: 0.85rem;
+            font-weight: 700;
+            padding: 8px 14px;
+            margin: 0;
+            width: auto;
+            border-radius: var(--radius-pill);
+            box-shadow: 0 4px 12px rgba(255, 143, 171, 0.35);
+            transition: transform 0.2s var(--ease-spring), filter 0.2s ease, box-shadow 0.25s ease;
+        }
+        .site-ad-nav:hover {
+            background: linear-gradient(135deg, #ff8fab, #4da3ff);
+            filter: brightness(1.08);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(255, 143, 171, 0.5);
+        }
 
         /* ================= 快捷操作区 ================= */
         .hero-actions {
@@ -399,6 +419,7 @@
             .site-header { padding: 12px 16px; }
             .brand-name-text { font-size: 1.1rem; }
             .nav-link { padding: 6px 10px; font-size: 0.82rem; }
+            .site-ad-nav { padding: 6px 10px; font-size: 0.76rem; }
             .comic-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
             .menu-btn { bottom: 22px; right: 22px; width: 56px; height: 56px; font-size: 26px; }
         }
@@ -430,6 +451,7 @@
                 <span class="brand-name-text">漫画站</span>
             </div>
             <nav class="nav-links">
+                <button type="button" class="site-ad-nav" onclick="showSiteModal()">🌱 新站上线</button>
                 <a href="docs.html" class="nav-link">📚 文档中心</a>
                 <a href="login.html" class="nav-link" id="navLogin">🔑 登录</a>
                 <span class="nav-user" id="navUser" style="display:none;"></span>
