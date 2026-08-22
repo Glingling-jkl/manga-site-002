@@ -14,6 +14,13 @@
             background:
                 linear-gradient(#ffffff, #ffffff) padding-box,
                 linear-gradient(135deg, #ffb6c1 0%, #4da3ff 100%) border-box;
+            /* 加宽加高：更舒展的登录窗口，内容垂直居中 */
+            max-width: 480px;
+            padding: 3rem 2.8rem;
+            min-height: 560px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
             animation: popIn 0.5s var(--ease-spring) both;
         }
         .login-box::before,
@@ -98,6 +105,9 @@
             transform: scale(1.35);
             opacity: 0;
             filter: blur(6px);
+        }
+        @media (max-height: 700px) {
+            .login-box { min-height: auto; padding: 2.4rem 2rem; }
         }
         @media (max-height: 560px) {
             body { align-items: flex-start; }
