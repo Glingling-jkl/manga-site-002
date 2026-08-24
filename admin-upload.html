@@ -207,21 +207,21 @@
             box-shadow: 0 8px 22px rgba(0, 112, 243, 0.4);
             animation: glowPulse 3.2s ease-in-out infinite;
         }
-        .admin-link {
-            margin-top: 22px;
+        .page-actions {
             display: flex;
             justify-content: center;
             gap: 12px;
             flex-wrap: wrap;
+            margin-top: 14px;
         }
-        .admin-link a {
+        .page-actions a {
             color: var(--primary);
             text-decoration: none;
             font-weight: 700;
             font-size: 0.92rem;
             transition: opacity 0.2s ease;
         }
-        .admin-link a:hover { opacity: 0.8; }
+        .page-actions a:hover { opacity: 0.8; }
     </style>
     <script src="common.js" defer></script>
     <script>
@@ -249,6 +249,10 @@
                 <span class="step-pill">2 上传封面</span>
                 <span class="step-pill">3 填写信息</span>
                 <span class="step-pill">4 自动分片上传</span>
+            </div>
+            <div class="page-actions">
+                <a class="btn btn-ghost" href="admin-manage.html">📋 管理漫画</a>
+                <a class="btn btn-ghost" href="index.html">🏠 返回主页</a>
             </div>
         </div>
 
@@ -327,10 +331,6 @@
         </div>
 
         <div id="result" style="margin-top: 20px;"></div>
-        <div class="admin-link">
-            <a class="btn btn-ghost" href="admin-manage.html">📋 管理漫画</a>
-            <a class="btn btn-ghost" href="index.html">🏠 返回主页</a>
-        </div>
     </div>
 
     <script>
